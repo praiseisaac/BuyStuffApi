@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "C+XopIbrJC/TOuJbLnotYXYb9dxpgL3kS00X5NeZ7C8/emgxbQZDS2Vq5LWWojpTqbNnyRmTnh36qNf1kHkjmA==",
+  "success": true,
+  "projectFilePath": "G:\\My Drive\\Projects\\BuyStuff\\BuyStuffApi\\BuyStuffApi.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\daram\\.nuget\\packages\\mysqlconnector\\1.0.0\\mysqlconnector.1.0.0.nupkg.sha512"
+  ],
+  "logs": []
+}
