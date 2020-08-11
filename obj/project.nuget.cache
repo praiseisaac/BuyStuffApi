@@ -1,10 +1,21 @@
 {
   "version": 2,
-  "dgSpecHash": "C+XopIbrJC/TOuJbLnotYXYb9dxpgL3kS00X5NeZ7C8/emgxbQZDS2Vq5LWWojpTqbNnyRmTnh36qNf1kHkjmA==",
+  "dgSpecHash": "CAy2sSNrn3E9POZxdkbcdvYk1gYK/J+kySk/KGjTTkRjAvZ775Po65K+JCFK/5IS6qFHNUne2m9htKigLHiJjQ==",
   "success": true,
   "projectFilePath": "G:\\My Drive\\Projects\\BuyStuff\\BuyStuffApi\\BuyStuffApi.csproj",
   "expectedPackageFiles": [
-    "C:\\Users\\daram\\.nuget\\packages\\mysqlconnector\\1.0.0\\mysqlconnector.1.0.0.nupkg.sha512"
+    "C:\\Users\\daram\\.nuget\\packages\\microsoft.aspnetcore.authentication.jwtbearer\\3.1.6\\microsoft.aspnetcore.authentication.jwtbearer.3.1.6.nupkg.sha512",
+    "C:\\Users\\daram\\.nuget\\packages\\microsoft.csharp\\4.5.0\\microsoft.csharp.4.5.0.nupkg.sha512",
+    "C:\\Users\\daram\\.nuget\\packages\\microsoft.extensions.objectpool\\5.0.0-preview.7.20365.19\\microsoft.extensions.objectpool.5.0.0-preview.7.20365.19.nupkg.sha512",
+    "C:\\Users\\daram\\.nuget\\packages\\microsoft.identitymodel.jsonwebtokens\\6.7.1\\microsoft.identitymodel.jsonwebtokens.6.7.1.nupkg.sha512",
+    "C:\\Users\\daram\\.nuget\\packages\\microsoft.identitymodel.logging\\6.7.1\\microsoft.identitymodel.logging.6.7.1.nupkg.sha512",
+    "C:\\Users\\daram\\.nuget\\packages\\microsoft.identitymodel.protocols\\5.5.0\\microsoft.identitymodel.protocols.5.5.0.nupkg.sha512",
+    "C:\\Users\\daram\\.nuget\\packages\\microsoft.identitymodel.protocols.openidconnect\\5.5.0\\microsoft.identitymodel.protocols.openidconnect.5.5.0.nupkg.sha512",
+    "C:\\Users\\daram\\.nuget\\packages\\microsoft.identitymodel.tokens\\6.7.1\\microsoft.identitymodel.tokens.6.7.1.nupkg.sha512",
+    "C:\\Users\\daram\\.nuget\\packages\\mysqlconnector\\1.0.0\\mysqlconnector.1.0.0.nupkg.sha512",
+    "C:\\Users\\daram\\.nuget\\packages\\newtonsoft.json\\12.0.3\\newtonsoft.json.12.0.3.nupkg.sha512",
+    "C:\\Users\\daram\\.nuget\\packages\\system.identitymodel.tokens.jwt\\6.7.1\\system.identitymodel.tokens.jwt.6.7.1.nupkg.sha512",
+    "C:\\Users\\daram\\.nuget\\packages\\system.security.cryptography.cng\\4.5.0\\system.security.cryptography.cng.4.5.0.nupkg.sha512"
   ],
   "logs": []
 }
