@@ -10,6 +10,7 @@ using Microsoft.Win32;
 using BuyStuffApi.Helpers;
 using BuyStuffApi.Entities;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace BuyStuffApi.Services
 {
@@ -23,6 +24,8 @@ namespace BuyStuffApi.Services
 
         Task Update(Buyer buyer, string password);
         Task Delete(int id);
+        Task AddBuyerOrder(int id, int orderId);
+        Task AddBuyerReturn(int id, int orderId);
     }
 
     public class BuyerService : IBuyerService
@@ -56,7 +59,7 @@ namespace BuyStuffApi.Services
 
             using var cmd = Db.Connection.CreateCommand();
 
-            cmd.CommandText = @"INSERT INTO `buyers` (`email`, `username`, `first_name`, `last_name`, `password_hash`, `password_salt`, `address`) VALUES (@email, @username, @first_name, @last_name, @password_hash, @passsword_salt, @adress);";
+            cmd.CommandText = @"INSERT INTO `buyers` (`email`, `username`, `first_name`, `last_name`, `password_hash`, `password_salt`, `address`) VALUES (@email, @username, @first_name, @last_name, @password_hash, @password_salt, @address);";
             // buyer._Id = (int) cmd.LastInsertedId;
             BindParams(cmd, buyer);
             await cmd.ExecuteNonQueryAsync();
@@ -73,7 +76,7 @@ namespace BuyStuffApi.Services
             }
 
             var cmd = Db.Connection.CreateCommand();
-            cmd.CommandText = @"SELECT `email`, `password_hash`, `password_salt` FROM `buyers` WHERE `email` = @email";
+            cmd.CommandText = @"SELECT * FROM `buyers` WHERE `email` = @email";
 
             cmd.Parameters.Add(
                 new MySqlParameter
@@ -99,8 +102,8 @@ namespace BuyStuffApi.Services
         // get a user from the database by id
         public async Task<Buyer> GetBuyer(int id)
         {
-            using var cmd = Db.Connection.CreateCommand();
-            cmd.CommandText = @"SELECT `id`, `email`, `username`, `first_name`, `last_name`, `address` FROM `buyers` WHERE `id` = @id";
+            using var cmd = Db?.Connection.CreateCommand();
+            cmd.CommandText = @"SELECT * FROM `buyers` WHERE `id` = @id";
             cmd.Parameters.Add(
                 new MySqlParameter
                 {
@@ -109,7 +112,7 @@ namespace BuyStuffApi.Services
                     Value = id,
                 }
             );
-            var result = await GetBuyers(await cmd.ExecuteReaderAsync());
+            var result = await GetBuyersInfo(await cmd.ExecuteReaderAsync());
             return result.Count > 0 ? result[0] : null;
         }
 
@@ -117,7 +120,7 @@ namespace BuyStuffApi.Services
         public async Task<Buyer> GetBuyer(string email)
         {
             using var cmd = Db.Connection.CreateCommand();
-            cmd.CommandText = @"SELECT `id`, `email`, `username`, `first_name`, `last_name`, `address` FROM `buyers` WHERE `email` = @email";
+            cmd.CommandText = @"SELECT * FROM `buyers` WHERE `email` = @email";
             cmd.Parameters.Add(
                 new MySqlParameter
                 {
@@ -126,7 +129,7 @@ namespace BuyStuffApi.Services
                     Value = email,
                 }
             );
-            var result = await GetBuyers(await cmd.ExecuteReaderAsync());
+            var result = await GetBuyersInfo(await cmd.ExecuteReaderAsync());
             return result.Count > 0 ? result[0] : null;
         }
 
@@ -135,30 +138,8 @@ namespace BuyStuffApi.Services
             var buyers = new List<Buyer>();
             using var cmd = Db.Connection.CreateCommand();
             cmd.CommandText = @"SELECT * FROM `buyers`";
-            var reader = await cmd.ExecuteReaderAsync();
-            using (reader)
-            {
-                while (await reader.ReadAsync())
-                {
-                    // var items = JsonConvert.DeserializeObject<Carts>(reader.GetString(8)).Ids.Select(p => p.Id).ToList();
-                    // var quantities = JsonConvert.DeserializeObject<Carts>(reader.GetString(8)).Ids.Select(p => p.quantity).ToList();
-                    // var orders = JsonConvert.DeserializeObject<OrderIDs>(reader.GetString(9)).Ids.Select(p => p.Id).ToList();
 
-                    var buyer = new Buyer
-                    {
-                        _Id = reader.GetInt32(0),
-                        _email = reader.GetString(1),
-                        _username = reader.GetString(4),
-                        _first_name = reader.GetString(5),
-                        _last_name = reader.GetString(6),
-                        _address = reader.GetString(7),
-                        // _cart = CombineWith(items, quantities).ToList(),
-                        // _orders = orders,
-                    };
-                    buyers.Add(buyer);
-                }
-            }
-            return buyers.Count > 0 ? buyers : null;
+            return await ReadAllAsync(await cmd.ExecuteReaderAsync());
         }
 
         // reads all buyers from the database for authentication
@@ -169,12 +150,165 @@ namespace BuyStuffApi.Services
             {
                 while (await reader.ReadAsync())
                 {
+                    byte[] pass_hash = (byte[])reader["password_hash"];
+                    byte[] pass_salt = (byte[])reader["password_salt"];
+
+                    // long retval_hash = reader.GetBytes(2, 0, pass_hash, 0, 500);
+                    // long retval_salt = reader.GetBytes(11, 0, pass_hash, 0, 500);
+
+
+
                     var buyer = new Buyer
                     {
                         _Id = reader.GetInt32(0),
                         _email = reader.GetString(1),
-                        _password_hash = (byte[])(Convert.FromBase64String(reader.GetByte(2).ToString())),
-                        _password_salt = (byte[])(Convert.FromBase64String(reader.GetByte(3).ToString()))
+                        _password_hash = pass_hash,
+                        _password_salt = pass_salt,
+                        _username = (string)reader["username"],
+                        _first_name = (string)reader["first_name"],
+                        _last_name = (string)reader["last_name"],
+                        // _password_hash = (byte[])(Convert.FromBase64String(reader.GetByte(2).ToString())),
+                        // _password_salt = (byte[])(Convert.FromBase64String(reader.GetByte(11).ToString()))
+                    };
+                    buyers.Add(buyer);
+                }
+            }
+            return buyers;
+        }
+        // -- NEW --
+
+
+
+
+
+
+
+
+        public async Task AddBuyerOrder(int id, int orderId)
+        {
+            var buyer = GetBuyer(id).Result;
+
+            if (buyer == null)
+            {
+                throw new AppException("User not found");
+            }
+            try {
+                buyer._orders.Add(orderId);
+            } catch (NullReferenceException ex) {
+                buyer._orders = new List<int>();
+                buyer._orders.Add(orderId);
+            }
+            
+
+            using var cmd = Db.Connection.CreateCommand();
+            cmd.CommandText = @"UPDATE `buyers` SET `orders` = @orders WHERE `id` = @id;";
+            BindId(cmd, buyer);
+            cmd.Parameters.Add(
+                new MySqlParameter
+                {
+                    ParameterName = "@orders",
+                    DbType = DbType.String,
+                    Value = System.Text.Json.JsonSerializer.Serialize(buyer._orders)
+                }
+            );
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+
+        public async Task AddBuyerReturn(int id, int orderId)
+        {
+            var buyer = GetBuyer(id).Result;
+
+            if (buyer == null)
+            {
+                throw new AppException("User not found");
+            }
+            try {
+                buyer._returns.Add(orderId);
+            } catch (NullReferenceException ex) {
+                buyer._returns = new List<int>();
+                buyer._returns.Add(orderId);
+            }
+            
+
+            using var cmd = Db.Connection.CreateCommand();
+            cmd.CommandText = @"UPDATE `buyers` SET `returns` = @returns WHERE `id` = @id;";
+            BindId(cmd, buyer);
+            cmd.Parameters.Add(
+                new MySqlParameter
+                {
+                    ParameterName = "@returns",
+                    DbType = DbType.String,
+                    Value = System.Text.Json.JsonSerializer.Serialize(buyer._returns)
+                }
+            );
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+
+
+
+
+
+
+
+
+        // -- NEW END --
+        private async Task<List<Buyer>> GetBuyersInfo(DbDataReader reader)
+        {
+            var buyers = new List<Buyer>();
+            using (reader)
+            {
+                while (await reader.ReadAsync())
+                {
+                    List<Tuple<int, int>> cart = null;
+                    List<int> orders = null;
+                    List<int> returns = null;
+                    Payment payment = null;
+                    // long retval_hash = reader.GetBytes(2, 0, pass_hash, 0, 500);
+                    // long retval_salt = reader.GetBytes(11, 0, pass_hash, 0, 500);
+                    try {
+                        var items = JsonConvert.DeserializeObject<Carts>((string)reader["cart"]).Ids.Select(p => p.Id).ToList();
+                        var quantities = JsonConvert.DeserializeObject<Carts>((string)reader["cart"]).Ids.Select(p => p.quantity).ToList();
+                        cart = Help.CombineWith(items, quantities).ToList();
+                    } catch (InvalidCastException ex) {
+
+                    }
+
+                    try {
+                        returns = JsonConvert.DeserializeObject<List<int>>((string)reader["returns"]);
+                    } catch (InvalidCastException ex) {
+
+                    }
+
+                    try {
+                        orders = JsonConvert.DeserializeObject<List<int>>((string)reader["orders"]);
+                    } catch (InvalidCastException ex) {
+
+                    }
+                    
+                    
+                    try {
+                        payment = JsonConvert.DeserializeObject<Payment>((string)reader["payment"]);
+                    } catch (InvalidCastException ex) {
+
+                    }
+                    
+
+
+                    var buyer = new Buyer
+                    {
+                        _Id = reader.GetInt32(0),
+                        _email = reader.GetString(1),
+                        _username = (string)reader["username"],
+                        _first_name = (string)reader["first_name"],
+                        _last_name = (string)reader["last_name"],
+                        _orders = orders,
+                        _cart = cart,
+                        _returns = returns,
+                        _payment = payment,
+                        // _password_hash = (byte[])(Convert.FromBase64String(reader.GetByte(2).ToString())),
+                        // _password_salt = (byte[])(Convert.FromBase64String(reader.GetByte(11).ToString()))
                     };
                     buyers.Add(buyer);
                 }
@@ -186,7 +320,7 @@ namespace BuyStuffApi.Services
         private async Task<bool> CheckEmailAvalability(Buyer buyer)
         {
             using var cmd = Db.Connection.CreateCommand();
-            cmd.CommandText = @"SELECT `id` FROM `buyers` WHERE `email` = @email";
+            cmd.CommandText = @"SELECT `id`, `email`, `password_hash`, `password_salt` FROM `buyers` WHERE `email` = @email";
             cmd.Parameters.Add(
                 new MySqlParameter
                 {
@@ -237,20 +371,24 @@ namespace BuyStuffApi.Services
         {
             var buyer = GetBuyer(newBuyer._Id).Result;
 
-            if (newBuyer == null) {
+            if (newBuyer == null)
+            {
                 throw new AppException("User not found");
             }
 
-            if (buyer._email != newBuyer._email) {
+            if (buyer._email != newBuyer._email)
+            {
                 if (GetBuyers().Result.Any(x => x._email == newBuyer._email))
-                throw new AppException("Email " + newBuyer._email + " is already registered");
+                    throw new AppException("Email " + newBuyer._email + " is already registered");
             }
 
             buyer._first_name = newBuyer._first_name;
             buyer._last_name = newBuyer._last_name;
             buyer._username = newBuyer._username;
+            buyer._address = newBuyer._address;
 
-            if (!string.IsNullOrWhiteSpace(password)) {
+            if (!string.IsNullOrWhiteSpace(password))
+            {
                 byte[] password_hash, password_salt;
                 CreatePasswordHash(password, out password_hash, out password_salt);
 
@@ -259,7 +397,7 @@ namespace BuyStuffApi.Services
             }
 
             using var cmd = Db.Connection.CreateCommand();
-            cmd.CommandText = @"UPDATE `buyers` SET `email` = @email, `username` = @username, `first_name` = @first_name, `last_name` = @last_name, `password_hash` = @password_hash, `password_salt` = @password_salt, `address` = @adress) WHERE `id` = @id;";
+            cmd.CommandText = @"UPDATE `buyers` SET `email` = @email, `username` = @username, `first_name` = @first_name, `last_name` = @last_name, `password_hash` = @password_hash, `password_salt` = @password_salt, `address` = @address WHERE `id` = @id;";
             BindParams(cmd, buyer);
             BindId(cmd, buyer);
             await cmd.ExecuteNonQueryAsync();
@@ -338,50 +476,85 @@ namespace BuyStuffApi.Services
             });
         }
 
-        // public static IEnumerable<Tuple<T, U>> CombineWith<T, U>(this IEnumerable<T> first, IEnumerable<U> second)
-        // {
-        //     using (var firstEnumerator = first.GetEnumerator())
-        //     using (var secondEnumerator = second.GetEnumerator())
-        //     {
-        //         bool hasFirst = true;
-        //         bool hasSecond = true;
+        private async Task<List<Buyer>> ReadAllAsync(DbDataReader reader)
+        {
+            var buyers = new List<Buyer>();
 
-        //         while (
-        //             // Only call MoveNext if it didn't fail last time.
-        //             (hasFirst && (hasFirst = firstEnumerator.MoveNext()))
-        //             | // WARNING: Do NOT change to ||.
-        //             (hasSecond && (hasSecond = secondEnumerator.MoveNext()))
-        //             )
-        //         {
-        //             yield return Tuple.Create(
-        //                     hasFirst ? firstEnumerator.Current : default(T),
-        //                     hasSecond ? secondEnumerator.Current : default(U)
-        //                 );
-        //         }
-        //     }
-        // }
+            using (reader)
+            {
+                while (await reader.ReadAsync())
+                {
+                    // var items = JsonConvert.DeserializeObject<Carts>(reader.GetString(8)).Ids.Select(p => p.Id).ToList();
+                    // var quantities = JsonConvert.DeserializeObject<Carts>(reader.GetString(8)).Ids.Select(p => p.quantity).ToList();
+                    // var orders = JsonConvert.DeserializeObject<OrderIDs>(reader.GetString(9)).Ids.Select(p => p.Id).ToList();
+
+                    var buyer = new Buyer
+                    {
+                        _Id = reader.GetInt32(0),
+                        _email = reader.GetString(1),
+                        _username = reader.GetString(3),
+                        _first_name = reader.GetString(4),
+                        _last_name = reader.GetString(5),
+                        _address = reader.GetString(6),
+                        // _cart = CombineWith(items, quantities).ToList(),
+                        // _orders = orders,
+                    };
+                    buyers.Add(buyer);
+                }
+            }
+            return buyers;
+        }
+
+
 
         // for future might want to add the ability to acall all/multiple users
     }
 
-    // public class Cart
-    // {
-    //     public string Id { get; set; }
-    //     public int quantity { get; set; }
-    // }
+    public static class Help
+    {
+        public static IEnumerable<Tuple<T, U>> CombineWith<T, U>(this IEnumerable<T> first, IEnumerable<U> second)
+        {
+            using (var firstEnumerator = first.GetEnumerator())
+            using (var secondEnumerator = second.GetEnumerator())
+            {
+                bool hasFirst = true;
+                bool hasSecond = true;
 
-    // public class Carts
-    // {
-    //     public List<Cart> Ids { get; set; }
-    // }
+                while (
+                    // Only call MoveNext if it didn't fail last time.
+                    (hasFirst && (hasFirst = firstEnumerator.MoveNext()))
+                    | // WARNING: Do NOT change to ||.
+                    (hasSecond && (hasSecond = secondEnumerator.MoveNext()))
+                    )
+                {
+                    yield return Tuple.Create(
+                            hasFirst ? firstEnumerator.Current : default(T),
+                            hasSecond ? secondEnumerator.Current : default(U)
+                        );
+                }
+            }
+        }
+    }
 
-    // public class OrderId
-    // {
-    //     public int Id { get; set; }
-    // }
 
-    // public class OrderIDs
-    // {
-    //     public List<OrderId> Ids { get; set; }
-    // }
+    public class Cart
+    {
+        public int Id { get; set; }
+        public int quantity { get; set; }
+    }
+
+    public class Carts
+    {
+        public List<Cart> Ids { get; set; }
+    }
+
+    public class OrderId
+    {
+        public int Id { get; set; }
+    }
+
+    public class OrderIDs
+    {
+        public List<OrderId> Ids { get; set; }
+    }
 }

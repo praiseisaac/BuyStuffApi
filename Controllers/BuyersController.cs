@@ -10,30 +10,42 @@ using BuyStuffApi.Dtos;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using BuyStuffApi.Entities;
+using Microsoft.AspNetCore.Cors;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Options;
 
 namespace BuyStuffApi.Controllers
 {
-    [Authorize]
-    [Route("[controller]")]
+    // [Authorize]
+    // [EnableCors("ReactPolicy")]
+    [Route("api/[controller]")]
     public class BuyersController : Controller
     {
         private IBuyerService _buyerService;
         private readonly AppSettings _appSettings;
 
+        public AppDb Db { get; }
         public BuyersController(
             IBuyerService buyerService,
-            AppSettings appSettings
+            IOptions<AppSettings> appSettings,
+            AppDb db
         )
         {
+            Db = db;
             _buyerService = buyerService;
-            _appSettings = appSettings;
+            _appSettings = appSettings.Value;
         }
+
+
 
         [AllowAnonymous]
         [HttpPost("authenticate")]
-        public IActionResult Authenticate([FromBody] BuyerDto buyerDto)
+        public async Task<IActionResult> Authenticate([FromBody] BuyerDto buyerDto)
         {
-            var buyer = _buyerService.Authenticate(buyerDto._username, buyerDto._password).Result;
+            await Db.Connection.OpenAsync();
+            _buyerService = new BuyerService(Db);
+
+            var buyer = _buyerService.Authenticate(buyerDto._email, buyerDto._password).Result;
 
             if (buyer == null)
                 return Unauthorized();
@@ -65,13 +77,14 @@ namespace BuyStuffApi.Controllers
 
         [AllowAnonymous]
         [HttpPost]
-        public IActionResult Register([FromBody] BuyerDto buyerDto)
+        public async Task<IActionResult> Register([FromBody] BuyerDto buyerDto)
         {
             Buyer buyer = MapResult(buyerDto);
-
+            await Db.Connection.OpenAsync();
+            _buyerService = new BuyerService(Db);
             try
             {
-                _buyerService.Create(buyer, buyerDto._password);
+                await _buyerService.Create(buyer, buyerDto._password);
                 return Ok();
             }
             catch (AppException ex)
@@ -81,65 +94,185 @@ namespace BuyStuffApi.Controllers
         }
 
         [HttpGet]
-        public IActionResult GetAll()
+        public async Task<IActionResult> GetAll()
         {
+            // try {
+            await Db.Connection.OpenAsync();
+            _buyerService = new BuyerService(Db);
             var buyers = _buyerService.GetBuyers().Result;
-            var buyerDtos = new List<BuyerDto>();
+            var buyerDtos = new List<Object>();
+
+            // var testBuy = new Buyer{
+            //     _first_name = "praise",
+            //     _last_name = "daramola"
+            // };
+
+            if (buyers == null) return Ok();
+
             foreach (var item in buyers)
-            {
-                var buyerDto = MapResult(item);
-                buyerDtos.Add(buyerDto);
-            };
+                {
+                    var buyerDto = MapResultExport(item);
+                    buyerDtos.Add(buyerDto);
+                };
 
             return Ok(buyerDtos);
+            // } catch (NullReferenceException ex) {
+            //     return Ok(ex.Message);
+            // }
+
         }
 
         [HttpGet("{id}")]
-        public IActionResult GetById(int id) {
+        public async Task<IActionResult> GetById(int id)
+        {
+            // try
+            // {
+            await Db.Connection.OpenAsync();
+            _buyerService = new BuyerService(Db);
             var buyer = _buyerService.GetBuyer(id).Result;
             var buyerDto = MapResult(buyer);
             return Ok(buyerDto);
+            // }
+            // catch (NullReferenceException ex)
+            // {
+            //     return Ok(ex.Message);
+            // }
+
+        }
+
+        [HttpGet("email={email}")]
+        public async Task<IActionResult> GetById(string email)
+        {
+            // try
+            // {
+            await Db.Connection.OpenAsync();
+            _buyerService = new BuyerService(Db);
+            var buyer = _buyerService.GetBuyer(email).Result;
+            var buyerDto = MapResult(buyer);
+            return Ok(buyerDto);
+            // }
+            // catch (NullReferenceException ex)
+            // {
+            //     return Ok(ex.Message);
+            // }
+
         }
 
         [HttpPut("{id}")]
-        public IActionResult Update(int id, [FromBody] BuyerDto buyerDto) {
+        public async Task<IActionResult> Update(int id, [FromBody] BuyerDto buyerDto)
+        {
             var buyer = MapResult(buyerDto);
             buyer._Id = id;
+            await Db.Connection.OpenAsync();
+            _buyerService = new BuyerService(Db);
+            try
+            {
 
-            try {
-                _buyerService.Update(buyer, buyerDto._password);
+                await _buyerService.Update(buyer, buyerDto._password);
                 return Ok();
-            } catch (AppException ex) {
+            }
+            catch (AppException ex)
+            {
                 return BadRequest(ex.Message);
             }
         }
 
+
+
+        [HttpPut("id={id}/orderId={orderId}")]
+        public async Task<IActionResult> AddOrder(int id, int orderId)
+        {
+            // var buyer = MapResult(buyerDto);
+            // buyer._Id = id;
+            await Db.Connection.OpenAsync();
+            _buyerService = new BuyerService(Db);
+            try
+            {
+                await _buyerService.AddBuyerOrder(id, orderId);
+                return Ok();
+            }
+            catch (AppException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        [HttpPut("return/id={id}/orderId={orderId}")]
+        public async Task<IActionResult> AddReturn(int id, int orderId)
+        {
+            // var buyer = MapResult(buyerDto);
+            // buyer._Id = id;
+            await Db.Connection.OpenAsync();
+            _buyerService = new BuyerService(Db);
+            try
+            {
+                await _buyerService.AddBuyerReturn(id, orderId);
+                return Ok();
+            }
+            catch (AppException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+
+
         [HttpDelete("{id}")]
-        public IActionResult Delete(int id) {
-            _buyerService.Delete(id);
+        public async Task<IActionResult> Delete(int id)
+        {
+            await Db.Connection.OpenAsync();
+            _buyerService = new BuyerService(Db);
+            await _buyerService.Delete(id);
             return Ok();
         }
 
-        private BuyerDto MapResult(Buyer buyer) {
+
+
+        private BuyerDto MapResult(Buyer buyer)
+        {
             return new BuyerDto
-                {
-                    _username = buyer._username,
-                    _email = buyer._email,
-                    _first_name = buyer._first_name,
-                    _last_name = buyer._last_name,
-                    _address = buyer._address,
-                };
+            {
+                _Id = buyer._Id,
+                _username = buyer._username,
+                _email = buyer._email,
+                _first_name = buyer._first_name,
+                _last_name = buyer._last_name,
+                _address = buyer._address,
+                _cart = buyer._cart,
+                _orders = buyer._orders,
+                _returns = buyer._returns
+            };
         }
 
-        private Buyer MapResult(BuyerDto buyer) {
+        private Object MapResultExport(Buyer buyer) {
+            return new
+            {
+                _Id = buyer._Id,
+                _username = buyer._username,
+                _email = buyer._email,
+                _first_name = buyer._first_name,
+                _last_name = buyer._last_name,
+                _address = buyer._address,
+                _cart = buyer._cart,
+                _orders = buyer._orders,
+                _returns = buyer._returns
+            };
+        }
+
+        private Buyer MapResult(BuyerDto buyer)
+        {
             return new Buyer
-                {
-                    _username = buyer._username,
-                    _email = buyer._email,
-                    _first_name = buyer._first_name,
-                    _last_name = buyer._last_name,
-                    _address = buyer._address,
-                };
+            {
+                _Id = buyer._Id,
+                _username = buyer._username,
+                _email = buyer._email,
+                _first_name = buyer._first_name,
+                _last_name = buyer._last_name,
+                _address = buyer._address,
+                _cart = buyer._cart,
+                _orders = buyer._orders,
+                _returns = buyer._returns
+            };
 
         }
     }

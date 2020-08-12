@@ -15,6 +15,7 @@ using BuyStuffApi.Entities;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using BuyStuffApi.Services;
 
 namespace BuyStuffApi
 {
@@ -31,8 +32,16 @@ namespace BuyStuffApi
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
-            services.AddTransient<AppDb>(_ => new AppDb("ConnectionStrings:DeafultConnection"));
-            services.AddCors();
+            services.AddTransient<AppDb>(_ => new AppDb(Configuration["ConnectionStrings:DefaultConnection"]));
+            services.AddSingleton<BuyerService>();
+            services.AddSingleton<SellerService>();
+            services.AddCors(o => o.AddPolicy("ReactPolicy", builder =>
+            {
+                builder.WithOrigins("99.108.70.182")
+           .AllowAnyMethod()
+           .AllowAnyHeader()
+           .AllowCredentials();
+            }));
             services.AddMvc();
 
             var appSettingsSection = Configuration.GetSection("AppSettings");
@@ -57,16 +66,22 @@ namespace BuyStuffApi
                     ValidateAudience = false
                 };
             });
+            // MvcOptions.EnableEndpointRouting = false;
+            services.AddScoped<IBuyerService, BuyerService>();
 
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
+            app.UseCors("ReactPolicy");
+
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
             }
+
+            
 
             app.UseHttpsRedirection();
 
@@ -78,6 +93,24 @@ namespace BuyStuffApi
             {
                 endpoints.MapControllers();
             });
+            // app.UseCors();
+            // using (var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole()))
+            // {
+            //     // use loggerFactory
+            //     app.UseCors(x => x
+            //     .AllowAnyOrigin()
+            //     .AllowAnyMethod()
+            //     .AllowAnyHeader()
+            //     .AllowCredentials());
+
+            //     app.UseAuthentication();
+
+            //     // app.UseMvc();
+            // }
+            
+
+            // global cors policy
+
         }
     }
 }

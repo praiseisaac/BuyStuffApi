@@ -4,7 +4,7 @@ using BuyStuffApi.Entities;
 
 namespace BuyStuffApi.Dtos
 {
-    public class BuyerDto
+    public class SellerDto
     {
         public int _Id { get; set; }
         public string _email { get; set; }
