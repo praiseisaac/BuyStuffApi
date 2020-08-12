@@ -180,7 +180,7 @@ namespace BuyStuffApi.Controllers
 
 
         [HttpPut("id={id}/orderId={orderId}")]
-        public async Task<IActionResult> AddOrder(int id, int orderId)
+        public async Task<IActionResult> CreateOrder(int id, int orderId)
         {
             // var buyer = MapResult(buyerDto);
             // buyer._Id = id;

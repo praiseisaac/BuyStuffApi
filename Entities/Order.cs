@@ -7,15 +7,15 @@ using System.Collections.Generic;
 namespace BuyStuffApi.Entities
 {
     public class Order {
-        public int Id { get; set; }
-        public List<Item> items { get; set; }
-        public double total_cost { get; set; }
-        public DateTime date_created { get; set; }
-        public DateTime date_shipped { get; set; }
-        public string tracking_number { get; set; }
-        public string delivery_address { get; set; }
-        public double shipping_cost { get; set; }
-        public Status status { get; set; }
-        public DateTime date_delivered { get; set; }
+        public int _Id { get; set; }
+        public List<Item> _items { get; set; }
+        public double _total_cost { get; set; }
+        public DateTime _date_created { get; set; }
+        public DateTime  _date_shipped { get; set; }
+        public string _tracking_number { get; set; }
+        public string _delivery_address { get; set; }
+        public double _shipping_cost { get; set; }
+        public Status _status { get; set; }
+        public DateTime _date_delivered { get; set; }
     }
 }
