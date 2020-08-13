@@ -68,7 +68,7 @@ namespace BuyStuffApi
             });
             // MvcOptions.EnableEndpointRouting = false;
             services.AddScoped<IBuyerService, BuyerService>();
-
+            services.AddScoped<IOrderService, OrderService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

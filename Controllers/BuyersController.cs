@@ -24,16 +24,20 @@ namespace BuyStuffApi.Controllers
         private IBuyerService _buyerService;
         private readonly AppSettings _appSettings;
 
+        private IOrderService _orderService;
+
         public AppDb Db { get; }
         public BuyersController(
             IBuyerService buyerService,
             IOptions<AppSettings> appSettings,
+            IOrderService orderService,
             AppDb db
         )
         {
             Db = db;
             _buyerService = buyerService;
             _appSettings = appSettings.Value;
+            _orderService = orderService;
         }
 
 
@@ -179,15 +183,21 @@ namespace BuyStuffApi.Controllers
 
 
 
-        [HttpPut("id={id}/orderId={orderId}")]
-        public async Task<IActionResult> CreateOrder(int id, int orderId)
+        [HttpPut("{id}/order")]
+        public async Task<IActionResult> CreateOrder(int id, [FromBody] Order order)
         {
             // var buyer = MapResult(buyerDto);
             // buyer._Id = id;
+
             await Db.Connection.OpenAsync();
             _buyerService = new BuyerService(Db);
+            _orderService = new OrderService(Db);
+            
+
+
             try
             {
+                var orderId = _orderService.Create(id, order).Result._Id;
                 await _buyerService.AddBuyerOrder(id, orderId);
                 return Ok();
             }

@@ -15,7 +15,9 @@ namespace BuyStuffApi.Entities
         public string _tracking_number { get; set; }
         public string _delivery_address { get; set; }
         public double _shipping_cost { get; set; }
-        public Status _status { get; set; }
+        public OrderStatus _status { get; set; }
         public DateTime _date_delivered { get; set; }
+        public int _buyer_Id {get; set;}
+        public int _seller_Id {get; set;}
     }
 }

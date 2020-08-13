@@ -60,10 +60,10 @@ namespace BuyStuffApi.Services
             using var cmd = Db.Connection.CreateCommand();
 
             cmd.CommandText = @"INSERT INTO `buyers` (`email`, `username`, `first_name`, `last_name`, `password_hash`, `password_salt`, `address`) VALUES (@email, @username, @first_name, @last_name, @password_hash, @password_salt, @address);";
-            // buyer._Id = (int) cmd.LastInsertedId;
+            
             BindParams(cmd, buyer);
             await cmd.ExecuteNonQueryAsync();
-
+            buyer._Id = (int) cmd.LastInsertedId;
             return buyer;
         }
 

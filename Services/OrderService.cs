@@ -15,7 +15,7 @@ namespace BuyStuffApi.Services
 {
     public interface IOrderService
     {
-        Task<Order> Create(Order order);
+        Task<Order> Create(int buyer_id, Order order);
         Task<Order> GetOrder(int id);
         Task<Order> GetOrders(List<int> ids);
 
@@ -38,15 +38,27 @@ namespace BuyStuffApi.Services
         }
 
         // used to create a user
-        public async Task<Order> Create(Order order)
+        public async Task<Order> Create(int buyer_id, Order order)
         {
             using var cmd = Db.Connection.CreateCommand();
+            // order._date_created = DateTime.Now;
+            order._status = OrderStatus.ORDERED;
+            order._buyer_Id = buyer_id;
+            
+            // -- get seller info --
+            order._seller_Id = 1;
 
-            cmd.CommandText = @"INSERT INTO `orders` (`items`, `total_cost`, `date_created`, `tracking_number`, `delivery_address`, `shipping_cost`, `status`) VALUES (@items, @total_cost, @date_created, @tracking_number, @delivery_address, @shipping_cost, @status);";
-            // order._Id = (int) cmd.LastInsertedId;
+            // -- shipping --
+            Random random = new Random();
+            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            order._tracking_number = new string(Enumerable.Repeat(chars, 20).Select(s => s[random.Next(s.Length)]).ToArray());
+            // -- shiping end --
+
+            cmd.CommandText = @"INSERT INTO `orders` (`items`, `total_cost`, `date_created`, `tracking_number`, `delivery_address`, `shipping_cost`, `status`, `buyer_id`, `seller_id`) VALUES (@items, @total_cost, @date_created, @tracking_number, @delivery_address, @shipping_cost, @status, @buyer_id, @seller_id);";
+
             BindParams(cmd, order);
             await cmd.ExecuteNonQueryAsync();
-
+            order._Id = (int)cmd.LastInsertedId;
             return order;
         }
 
@@ -118,7 +130,7 @@ namespace BuyStuffApi.Services
                         _tracking_number = (string)reader["tracking_number"],
                         _delivery_address = (string)reader["address"],
                         _shipping_cost = (Double)reader["shipping_cost"],
-                        _status = (Status)Enum.Parse(typeof(Status), (string)reader["status"]),
+                        _status = (OrderStatus)Enum.Parse(typeof(OrderStatus), (string)reader["status"]),
                         _date_delivered = (DateTime)reader["date_delivered"]
                     };
                     orders.Add(order);
@@ -203,7 +215,7 @@ namespace BuyStuffApi.Services
             {
                 ParameterName = "@date_created",
                 DbType = DbType.String,
-                Value = order._date_created,
+                Value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
             });
             cmd.Parameters.Add(new MySqlParameter
             {
@@ -228,6 +240,18 @@ namespace BuyStuffApi.Services
                 ParameterName = "@status",
                 DbType = DbType.String,
                 Value = order._status.ToString(),
+            });
+            cmd.Parameters.Add(new MySqlParameter
+            {
+                ParameterName = "@buyer_id",
+                DbType = DbType.Int32,
+                Value = order._buyer_Id,
+            });
+            cmd.Parameters.Add(new MySqlParameter
+            {
+                ParameterName = "@seller_id",
+                DbType = DbType.Int32,
+                Value = order._seller_Id,
             });
         }
 

@@ -6,7 +6,11 @@ using System.Collections.Generic;
 
 namespace BuyStuffApi.Entities
 {
-    public enum Status {
-        ACTIVE, INACTIVE, DELIVERED, SHIPPED, SCHEDULED, CANCELLED
+    public enum OrderStatus {
+         ORDERED, SHIPPED, DELIVERED, CANCELLED
+    }
+
+    public enum ListingStatus {
+        SCHEDULED, ACTIVE, INACTIVE
     }
 }
