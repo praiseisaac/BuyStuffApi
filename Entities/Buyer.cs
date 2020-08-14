@@ -20,5 +20,6 @@ namespace BuyStuffApi.Entities
         // public List<int> _returns { get; set; }
         // public List<Tuple<string, string, int, int, int>> _payment { get; set; }
         // public byte[] _password_salt { get; set; }
+        public List<Item> _cart { get; set; }
     }
 }

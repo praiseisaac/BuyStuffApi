@@ -8,6 +8,7 @@ namespace BuyStuffApi.Entities
 {
     public class Seller : User
     {
-       
+       public List<int> _listings {get; set;}
+       public List<int>_items {get; set;}
     }
 }

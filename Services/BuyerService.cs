@@ -24,8 +24,12 @@ namespace BuyStuffApi.Services
 
         Task Update(Buyer buyer, string password);
         Task Delete(int id);
-        Task AddBuyerOrder(int id, int orderId);
+        Task PlaceOrder(int id, int orderId);
+        
         Task AddBuyerReturn(int id, int orderId);
+
+        Task AddItemToCart(int id, Item item);
+        Task RemoveItemFromCart(int id, Item item);
     }
 
     public class BuyerService : IBuyerService
@@ -60,10 +64,10 @@ namespace BuyStuffApi.Services
             using var cmd = Db.Connection.CreateCommand();
 
             cmd.CommandText = @"INSERT INTO `buyers` (`email`, `username`, `first_name`, `last_name`, `password_hash`, `password_salt`, `address`) VALUES (@email, @username, @first_name, @last_name, @password_hash, @password_salt, @address);";
-            
+
             BindParams(cmd, buyer);
             await cmd.ExecuteNonQueryAsync();
-            buyer._Id = (int) cmd.LastInsertedId;
+            buyer._Id = (int)cmd.LastInsertedId;
             return buyer;
         }
 
@@ -181,10 +185,7 @@ namespace BuyStuffApi.Services
 
 
 
-
-
-
-        public async Task AddBuyerOrder(int id, int orderId)
+        public async Task AddItemToCart(int id, Item item)
         {
             var buyer = GetBuyer(id).Result;
 
@@ -192,13 +193,92 @@ namespace BuyStuffApi.Services
             {
                 throw new AppException("User not found");
             }
-            try {
+            try
+            {
+                buyer._cart.Add(item);
+            }
+            catch (NullReferenceException ex)
+            {
+                buyer._cart = new List<Item>();
+                buyer._cart.Add(item);
+            }
+
+
+            using var cmd = Db.Connection.CreateCommand();
+            cmd.CommandText = @"UPDATE `buyers` SET `cart` = @cart WHERE `id` = @id;";
+            BindId(cmd, buyer);
+            cmd.Parameters.Add(
+                new MySqlParameter
+                {
+                    ParameterName = "@cart",
+                    DbType = DbType.String,
+                    Value = System.Text.Json.JsonSerializer.Serialize(buyer._cart)
+                }
+            );
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+
+
+        public async Task RemoveItemFromCart(int id, Item item)
+        {
+            var buyer = GetBuyer(id).Result;
+
+            if (buyer == null)
+            {
+                throw new AppException("User not found");
+            }
+
+            List<Item> newCart = new List<Item>();
+
+            for (int i = 0; i < buyer._cart.Count; i++)
+            {
+                if (buyer._cart[i]._Id == id)
+                {
+
+                }
+                else
+                {
+                    newCart.Add(buyer._cart[i]);
+                }
+            }
+            buyer._cart = newCart;
+
+            using var cmd = Db.Connection.CreateCommand();
+            cmd.CommandText = @"UPDATE `buyers` SET `cart` = @cart WHERE `id` = @id;";
+            BindId(cmd, buyer);
+            cmd.Parameters.Add(
+                new MySqlParameter
+                {
+                    ParameterName = "@cart",
+                    DbType = DbType.String,
+                    Value = System.Text.Json.JsonSerializer.Serialize(buyer._cart)
+                }
+            );
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+
+
+
+        public async Task PlaceOrder(int id, int orderId)
+        {
+            var buyer = GetBuyer(id).Result;
+
+            if (buyer == null)
+            {
+                throw new AppException("User not found");
+            }
+            try
+            {
                 buyer._orders.Add(orderId);
-            } catch (NullReferenceException ex) {
+            }
+            catch (NullReferenceException ex)
+            {
                 buyer._orders = new List<int>();
                 buyer._orders.Add(orderId);
             }
-            
+
 
             using var cmd = Db.Connection.CreateCommand();
             cmd.CommandText = @"UPDATE `buyers` SET `orders` = @orders WHERE `id` = @id;";
@@ -223,13 +303,16 @@ namespace BuyStuffApi.Services
             {
                 throw new AppException("User not found");
             }
-            try {
+            try
+            {
                 buyer._returns.Add(orderId);
-            } catch (NullReferenceException ex) {
+            }
+            catch (NullReferenceException ex)
+            {
                 buyer._returns = new List<int>();
                 buyer._returns.Add(orderId);
             }
-            
+
 
             using var cmd = Db.Connection.CreateCommand();
             cmd.CommandText = @"UPDATE `buyers` SET `returns` = @returns WHERE `id` = @id;";
@@ -267,33 +350,45 @@ namespace BuyStuffApi.Services
                     Payment payment = null;
                     // long retval_hash = reader.GetBytes(2, 0, pass_hash, 0, 500);
                     // long retval_salt = reader.GetBytes(11, 0, pass_hash, 0, 500);
-                    try {
+                    try
+                    {
                         var items = JsonConvert.DeserializeObject<Carts>((string)reader["cart"]).Ids.Select(p => p.Id).ToList();
                         var quantities = JsonConvert.DeserializeObject<Carts>((string)reader["cart"]).Ids.Select(p => p.quantity).ToList();
                         cart = Help.CombineWith(items, quantities).ToList();
-                    } catch (InvalidCastException ex) {
+                    }
+                    catch (InvalidCastException ex)
+                    {
 
                     }
 
-                    try {
+                    try
+                    {
                         returns = JsonConvert.DeserializeObject<List<int>>((string)reader["returns"]);
-                    } catch (InvalidCastException ex) {
+                    }
+                    catch (InvalidCastException ex)
+                    {
 
                     }
 
-                    try {
+                    try
+                    {
                         orders = JsonConvert.DeserializeObject<List<int>>((string)reader["orders"]);
-                    } catch (InvalidCastException ex) {
+                    }
+                    catch (InvalidCastException ex)
+                    {
 
                     }
-                    
-                    
-                    try {
+
+
+                    try
+                    {
                         payment = JsonConvert.DeserializeObject<Payment>((string)reader["payment"]);
-                    } catch (InvalidCastException ex) {
+                    }
+                    catch (InvalidCastException ex)
+                    {
 
                     }
-                    
+
 
 
                     var buyer = new Buyer

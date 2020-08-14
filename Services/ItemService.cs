@@ -18,11 +18,11 @@ namespace BuyStuffApi.Services
         Task<Item> Create(int item_id, Item item);
         Task<Item> GetItem(int id);
         Task<Item> GetItems(List<int> ids);
-        Task<Item> GetSellerItems(int id);
+        // Task<List<Item>> GetSellerItems(int id);
         Task<IEnumerable<Item>> GetItems();
         Task Update(Item item);
         Task UpdateQuantity(Item item);
-        
+        Task<IEnumerable<Item>> GetItems(Seller seller);
         Task Delete(int id);
     }
 
@@ -41,12 +41,12 @@ namespace BuyStuffApi.Services
         }
 
         // used to create a item item
-        public async Task<Item> Create(int itemId, Item item)
+        public async Task<Item> Create(int sellerId, Item item)
         {
             using var cmd = Db.Connection.CreateCommand();
-            item._seller_id = itemId;
+            item._seller_id = sellerId;
 
-            cmd.CommandText = @"INSERT INTO `items` (`name`, `quantity`, `item_id`) VALUES (@name, @quantity, @item_id);";
+            cmd.CommandText = @"INSERT INTO `items` (`name`, `quantity`, `seller_id`) VALUES (@name, @quantity, @seller_id);";
 
             BindParams(cmd, item);
             await cmd.ExecuteNonQueryAsync();
@@ -70,21 +70,21 @@ namespace BuyStuffApi.Services
             return result.Count > 0 ? result[0] : null;
         }
 
-        public async Task<Item> GetSellerItems(int id)
-        {
-            using var cmd = Db?.Connection.CreateCommand();
-            cmd.CommandText = @"SELECT * FROM `items` WHERE `item_id` IN {@id}";
-            cmd.Parameters.Add(
-                new MySqlParameter
-                {
-                    ParameterName = "@id",
-                    DbType = DbType.Int32,
-                    Value = id
-                }
-            );
-            var result = await GetItemsInfo(await cmd.ExecuteReaderAsync());
-            return result.Count > 0 ? result[0] : null;
-        }
+        // public async Task<List<Item>> GetSellerItems(List<int> ids)
+        // {
+        //     using var cmd = Db?.Connection.CreateCommand();
+        //     cmd.CommandText = @"SELECT * FROM `items` WHERE `seller_id` IN {@id}";
+        //     cmd.Parameters.Add(
+        //         new MySqlParameter
+        //         {
+        //             ParameterName = "@id",
+        //             DbType = DbType.Int32,
+        //             Value = string.Join(", ", ids)
+        //         }
+        //     );
+        //     var result = await GetItemsInfo(await cmd.ExecuteReaderAsync());
+        //     return result.Count > 0 ? result : null;
+        // }
 
         public async Task<Item> GetItem(int id)
         {
@@ -111,6 +111,22 @@ namespace BuyStuffApi.Services
             return await GetItemsInfo(await cmd.ExecuteReaderAsync());
         }
 
+        public async Task<IEnumerable<Item>> GetItems(Seller seller)
+        {
+            using var cmd = Db?.Connection.CreateCommand();
+            cmd.CommandText = @"SELECT * FROM `items` WHERE `seller_id` = @id";
+            cmd.Parameters.Add(
+                new MySqlParameter
+                {
+                    ParameterName = "@id",
+                    DbType = DbType.Int32,
+                    Value = seller._Id
+                }
+            );
+
+            return await GetItemsInfo(await cmd.ExecuteReaderAsync());
+        }
+
         private async Task<List<Item>> GetItemsInfo(DbDataReader reader)
         {
             var items = new List<Item>();
@@ -124,7 +140,7 @@ namespace BuyStuffApi.Services
                         _Id = (int)reader["id"],
                         _name = (string) reader["name"],
                         _quantity = (int) reader["quantity"],
-                        _seller_id = (int) reader["item_id"]
+                        _seller_id = (int) reader["seller_id"]
                     };
                     items.Add(item);
                 }
@@ -209,8 +225,8 @@ namespace BuyStuffApi.Services
             });
             cmd.Parameters.Add(new MySqlParameter
             {
-                ParameterName = "@item_id",
-                DbType = DbType.String,
+                ParameterName = "@seller_id",
+                DbType = DbType.Int32,
                 Value = item._seller_id,
             });
         }

@@ -37,12 +37,14 @@ namespace BuyStuffApi
             services.AddSingleton<SellerService>();
             services.AddCors(o => o.AddPolicy("ReactPolicy", builder =>
             {
-                builder.WithOrigins("99.108.70.182")
+                builder.AllowAnyOrigin()
            .AllowAnyMethod()
            .AllowAnyHeader()
-           .AllowCredentials();
+           //    .AllowCredentials()
+           ;
             }));
             services.AddMvc();
+
 
             var appSettingsSection = Configuration.GetSection("AppSettings");
             services.Configure<AppSettings>(appSettingsSection);
@@ -66,9 +68,19 @@ namespace BuyStuffApi
                     ValidateAudience = false
                 };
             });
+
+            services.AddAuthorization(options =>
+    options.AddPolicy("ValidAccessToken", policy =>
+    {
+        policy.AuthenticationSchemes.Add(JwtBearerDefaults.AuthenticationScheme);
+        policy.RequireAuthenticatedUser();
+    }));
             // MvcOptions.EnableEndpointRouting = false;
             services.AddScoped<IBuyerService, BuyerService>();
+            services.AddScoped<ISellerService, SellerService>();
             services.AddScoped<IOrderService, OrderService>();
+            services.AddScoped<IListingService, ListingService>();
+            services.AddScoped<IItemService, ItemService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -81,14 +93,14 @@ namespace BuyStuffApi
                 app.UseDeveloperExceptionPage();
             }
 
-            
+
 
             app.UseHttpsRedirection();
 
             app.UseRouting();
 
             app.UseAuthorization();
-
+            app.UseAuthorization();
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
@@ -107,8 +119,8 @@ namespace BuyStuffApi
 
             //     // app.UseMvc();
             // }
-            
 
+            // app.UseMvc();
             // global cors policy
 
         }

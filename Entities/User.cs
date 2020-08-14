@@ -12,7 +12,7 @@ namespace BuyStuffApi.Entities
         public string _last_name { get; set; }
         public byte[] _password_hash { get; set; }
         public string _address { get; set; }
-        public List<Tuple<int, int>> _cart { get; set; }
+        
         public List<int> _orders { get; set; }
         public List<int> _returns { get; set; }
         public Payment _payment { get; set; }

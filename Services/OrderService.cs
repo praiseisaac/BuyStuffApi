@@ -17,10 +17,13 @@ namespace BuyStuffApi.Services
     {
         Task<Order> Create(int buyer_id, Order order);
         Task<Order> GetOrder(int id);
-        Task<Order> GetOrders(List<int> ids);
-
-        Task CancelOrder(int id);
+        Task<List<Order>> GetOrders(List<int> ids);
+        Task<List<Order>> GetOrders(Seller seller);
+        Task<List<Order>> GetOrders(Buyer buyer);
+        Task<OrderStatus> CancelOrder(int id);
         Task Delete(int id);
+        Task<Order> FulfillOrder(int sellerId, int orderId);
+        Task<List<Order>> CreateOrders(int buyer_id, List<Order> orders);
     }
 
     public class OrderService : IOrderService
@@ -44,9 +47,9 @@ namespace BuyStuffApi.Services
             // order._date_created = DateTime.Now;
             order._status = OrderStatus.ORDERED;
             order._buyer_Id = buyer_id;
-            
+
             // -- get seller info --
-            order._seller_Id = 1;
+            // order._seller_Id = ;
 
             // -- shipping --
             Random random = new Random();
@@ -62,8 +65,18 @@ namespace BuyStuffApi.Services
             return order;
         }
 
+        public async Task<List<Order>> CreateOrders(int buyer_id, List<Order> orders)
+        {
+            List<Order> newOrders = new List<Order>();
+            for (int i = 0; i < orders.Count; i++) {
+                newOrders.Add(await Create(buyer_id, orders[i]));
+            }
+
+            return newOrders;
+        }
+
         // get a user from the database by id
-        public async Task<Order> GetOrders(List<int> ids)
+        public async Task<List<Order>> GetOrders(List<int> ids)
         {
             using var cmd = Db?.Connection.CreateCommand();
             cmd.CommandText = @"SELECT * FROM `orders` WHERE `id` IN {@id}";
@@ -75,7 +88,38 @@ namespace BuyStuffApi.Services
                 }
             );
             var result = await GetOrdersInfo(await cmd.ExecuteReaderAsync());
-            return result.Count > 0 ? result[0] : null;
+            return result.Count > 0 ? result : null;
+        }
+
+        // get a user from the database by id
+        public async Task<List<Order>> GetOrders(Buyer buyer)
+        {
+            using var cmd = Db?.Connection.CreateCommand();
+            cmd.CommandText = @"SELECT * FROM `orders` WHERE `buyer_id` = @id";
+            cmd.Parameters.Add(
+                new MySqlParameter
+                {
+                    ParameterName = "@id",
+                    Value = buyer._Id
+                }
+            );
+            var result = await GetOrdersInfo(await cmd.ExecuteReaderAsync());
+            return result.Count > 0 ? result : null;
+        }
+
+        public async Task<List<Order>> GetOrders(Seller seller)
+        {
+            using var cmd = Db?.Connection.CreateCommand();
+            cmd.CommandText = @"SELECT * FROM `orders` WHERE `seller_id` = @id";
+            cmd.Parameters.Add(
+                new MySqlParameter
+                {
+                    ParameterName = "@id",
+                    Value = seller._Id
+                }
+            );
+            var result = await GetOrdersInfo(await cmd.ExecuteReaderAsync());
+            return result.Count > 0 ? result : null;
         }
 
         public async Task<Order> GetOrder(int id)
@@ -106,47 +150,130 @@ namespace BuyStuffApi.Services
         private async Task<List<Order>> GetOrdersInfo(DbDataReader reader)
         {
             List<Item> items = null;
-            try
-            {
-                items = JsonConvert.DeserializeObject<List<Item>>((string)reader["items"]);
-            }
-            catch (InvalidCastException ex)
-            {
-
-            }
+            Order order = null;
             var orders = new List<Order>();
             using (reader)
             {
+
                 while (await reader.ReadAsync())
                 {
-
-                    var order = new Order
+                    try
                     {
-                        _Id = (int)reader["id"],
-                        _date_created = (DateTime)reader["date_created"],
-                        _date_shipped = (DateTime)reader["date_shipped"],
-                        _total_cost = (Double)reader["total_cost"],
-                        _items = items,
-                        _tracking_number = (string)reader["tracking_number"],
-                        _delivery_address = (string)reader["address"],
-                        _shipping_cost = (Double)reader["shipping_cost"],
-                        _status = (OrderStatus)Enum.Parse(typeof(OrderStatus), (string)reader["status"]),
-                        _date_delivered = (DateTime)reader["date_delivered"]
-                    };
+                        items = JsonConvert.DeserializeObject<List<Item>>((string)reader["items"]);
+                    }
+                    catch (InvalidCastException ex)
+                    {
+
+                    }
+                    try
+                    {
+                        items = JsonConvert.DeserializeObject<List<Item>>((string)reader["items"]);
+                    }
+                    catch (InvalidCastException ex)
+                    {
+
+                    }
+                    switch ((OrderStatus)Enum.Parse(typeof(OrderStatus), (string)reader["status"]))
+                    {
+                        case (OrderStatus.DELIVERED):
+                            order = new Order
+                            {
+                                _Id = (int)reader["id"],
+                                _date_created = DateTime.Parse((string)reader["date_created"]),
+                                _date_shipped = DateTime.Parse((string)reader["date_shipped"]),
+                                _total_cost = (Double)reader["total_cost"],
+                                _items = items,
+                                _tracking_number = (string)reader["tracking_number"],
+                                _delivery_address = (string)reader["delivery_address"],
+                                _shipping_cost = (Double)reader["shipping_cost"],
+                                _status = (OrderStatus)Enum.Parse(typeof(OrderStatus), (string)reader["status"]),
+                                _date_delivered = DateTime.Parse((string)reader["date_delivered"]),
+                            };
+                            break;
+                        case (OrderStatus.SHIPPED):
+                            order = new Order
+                            {
+                                _Id = (int)reader["id"],
+                                _date_created = DateTime.Parse((string)reader["date_created"]),
+                                _date_shipped = DateTime.Parse((string)reader["date_shipped"]),
+                                _total_cost = (Double)reader["total_cost"],
+                                _items = items,
+                                _tracking_number = (string)reader["tracking_number"],
+                                _delivery_address = (string)reader["delivery_address"],
+                                _shipping_cost = (Double)reader["shipping_cost"],
+                                _status = (OrderStatus)Enum.Parse(typeof(OrderStatus), (string)reader["status"])
+                            };
+                        break;
+                        default:
+                            order = new Order
+                            {
+                                _Id = (int)reader["id"],
+                                _date_created = reader.GetDateTime(2),
+                                _total_cost = reader.GetDouble(3),
+                                _items = items,
+                                _tracking_number = (string)reader["tracking_number"],
+                                _delivery_address = (string)reader["delivery_address"],
+                                _shipping_cost = reader.GetDouble(4),
+                                _status = (OrderStatus)Enum.Parse(typeof(OrderStatus), (string)reader["status"])
+                            };
+                        break;
+
+                    }
+
                     orders.Add(order);
                 }
             }
             return orders;
         }
 
+        public async Task<Order> FulfillOrder(int sellerId, int orderId) {
+            var order = GetOrder(orderId).Result;
 
-        public async Task CancelOrder(int id)
+            if (order == null)
+            {
+                throw new AppException("Order not found");
+            }
+            order._status = OrderStatus.SHIPPED;
+            if (order._seller_Id != sellerId) {
+                throw new AppException("Invalid! Not your order");
+            }
+
+            using var cmd = Db.Connection.CreateCommand();
+            cmd.CommandText = @"UPDATE `orders` SET `status` = @status WHERE `id` = @id;";
+            cmd.Parameters.Add(
+                new MySqlParameter
+                {
+                    ParameterName = "@id",
+                    DbType = DbType.Int32,
+                    Value = orderId
+                }
+            );
+            cmd.Parameters.Add(
+                new MySqlParameter
+                {
+                    ParameterName = "@status",
+                    Value = "SHIPPED"
+                }
+            );
+            BindId(cmd, order);
+            await cmd.ExecuteNonQueryAsync();
+            return order;
+        }
+
+        public async Task<OrderStatus> CancelOrder(int id)
         {
             var order = GetOrder(id).Result;
 
             if (order == null)
             {
                 throw new AppException("Order not found");
+            }
+            switch (order._status)
+            {
+                case OrderStatus.SHIPPED:
+                    throw new AppException("Unable to cancel order! Item has been shipped.");
+                case OrderStatus.DELIVERED:
+                    throw new AppException("Unable to cancel order! Item has been delivered.");
             }
 
             using var cmd = Db.Connection.CreateCommand();
@@ -168,6 +295,7 @@ namespace BuyStuffApi.Services
             );
             BindId(cmd, order);
             await cmd.ExecuteNonQueryAsync();
+            return order._status;
         }
 
         public async Task Delete(int id)

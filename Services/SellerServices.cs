@@ -20,7 +20,8 @@ namespace BuyStuffApi.Services
         Task<Seller> GetSeller(int id);
         Task<Seller> GetSeller(string email);
         Task<IEnumerable<Seller>> GetSellers();
-
+        Task AddListing(int sellerId, int listingId);
+        Task AddItem(int id, int itemId);
         Task Update(Seller seller, string password);
         Task Delete(int id);
     }
@@ -113,6 +114,69 @@ namespace BuyStuffApi.Services
             return result.Count > 0 ? result[0] : null;
         }
 
+
+        public async Task AddListing(int id, int listingId)
+        {
+            var seller = GetSeller(id).Result;
+
+            if (seller == null)
+            {
+                throw new AppException("User not found");
+            }
+            try {
+                seller._listings.Add(listingId);
+            } catch (NullReferenceException ex) {
+                seller._listings = new List<int>();
+                seller._listings.Add(listingId);
+            }
+            
+
+            using var cmd = Db.Connection.CreateCommand();
+            cmd.CommandText = @"UPDATE `sellers` SET `listings` = @listings WHERE `id` = @id;";
+            BindId(cmd, seller);
+            cmd.Parameters.Add(
+                new MySqlParameter
+                {
+                    ParameterName = "@listings",
+                    DbType = DbType.String,
+                    Value = System.Text.Json.JsonSerializer.Serialize(seller._orders)
+                }
+            );
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+// NON FUNCTIONAL
+        public async Task AddItem(int id, int itemId)
+        {
+            var seller = GetSeller(id).Result;
+
+            if (seller == null)
+            {
+                throw new AppException("User not found");
+            }
+            try {
+                seller._items.Add(itemId);
+            } catch (NullReferenceException ex) {
+                seller._items = new List<int>();
+                seller._items.Add(itemId);
+            }
+            
+
+            using var cmd = Db.Connection.CreateCommand();
+            cmd.CommandText = @"UPDATE `sellers` SET `listings` = @listings WHERE `id` = @id;";
+            BindId(cmd, seller);
+            cmd.Parameters.Add(
+                new MySqlParameter
+                {
+                    ParameterName = "@listings",
+                    DbType = DbType.String,
+                    Value = System.Text.Json.JsonSerializer.Serialize(seller._orders)
+                }
+            );
+            await cmd.ExecuteNonQueryAsync();
+        }
+        
+
         // gets a user from the database by email
         public async Task<Seller> GetSeller(string email)
         {
@@ -138,6 +202,8 @@ namespace BuyStuffApi.Services
             
             return await ReadAllAsync(await cmd.ExecuteReaderAsync());
         }
+
+        
 
         // reads all sellers from the database for authentication
         private async Task<List<Seller>> GetSellers(DbDataReader reader)
@@ -215,8 +281,36 @@ namespace BuyStuffApi.Services
                     Value = seller._email,
                 }
             );
-            var result = await GetSellers(await cmd.ExecuteReaderAsync());
-            return result.Count > 0;
+
+            var sellers = new List<Seller>();
+            var reader = await cmd.ExecuteReaderAsync();
+            await using (reader)
+            {
+                while (await reader.ReadAsync())
+                {
+                    byte[] pass_hash = (byte[]) reader["password_hash"];
+                    byte[] pass_salt = (byte[]) reader["password_salt"];
+
+                    // long retval_hash = reader.GetBytes(2, 0, pass_hash, 0, 500);
+                    // long retval_salt = reader.GetBytes(11, 0, pass_hash, 0, 500);
+
+
+
+                    var new_seller = new Seller
+                    {
+                        _Id = reader.GetInt32(0),
+                        _email = reader.GetString(1),
+                        _password_hash = pass_hash,
+                        _password_salt = pass_salt,
+                        // _password_hash = (byte[])(Convert.FromBase64String(reader.GetByte(2).ToString())),
+                        // _password_salt = (byte[])(Convert.FromBase64String(reader.GetByte(11).ToString()))
+                    };
+                    sellers.Add(new_seller);
+                }
+            }
+
+            var result = sellers.Count;
+            return result > 0;
         }
 
 
@@ -373,12 +467,12 @@ namespace BuyStuffApi.Services
 
                     var seller = new Seller
                     {
-                        _Id = reader.GetInt32(0),
-                        _email = reader.GetString(1),
-                        _username = reader.GetString(3),
-                        _first_name = reader.GetString(4),
-                        _last_name = reader.GetString(5),
-                        _address = reader.GetString(6),
+                        _Id = (int) reader["id"],
+                        _email = (string)reader["email"],
+                        _username = (string)reader["username"],
+                        _first_name = (string)reader["first_name"],
+                        _last_name = (string)reader["last_name"],
+                        _address = (string)reader["address"],
                         // _cart = CombineWith(items, quantities).ToList(),
                         // _orders = orders,
                     };
@@ -387,6 +481,10 @@ namespace BuyStuffApi.Services
             }
             return sellers;
         }
+
+
+
+        
 
         // public static IEnumerable<Tuple<T, U>> CombineWith<T, U>(this IEnumerable<T> first, IEnumerable<U> second)
         // {
