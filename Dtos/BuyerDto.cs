@@ -17,5 +17,6 @@ namespace BuyStuffApi.Dtos
         public List<int> _returns { get; set; }
         public Payment _payment { get; set; }
         public string _password { get; set; }
+        public string Token {get; set;}
     }
 }

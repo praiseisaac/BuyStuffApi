@@ -1,0 +1,50 @@
+Buyer {
+search for an item
+add item to their cart
+remove item from cart
+buy an item
+cancel order
+*return an item
+order item
+view orders
+account {
+edit account
+delete account
+} 
+
+}
+
+Seller {
+create listing
+edit listing
+ship item
+add item
+remove item
+remove listing
+deactivate listing
+cancel order
+search listing : seller id
+serach listiing
+view orders
+view listings
+fulfill order
+edit item
+
+account {
+edit
+delete
+}
+}
+
+Listing {
+view detailed information
+}
+
+Landing page {
+Promoted listings (first)
+Random orders
+Register
+Login
+Login (seller)
+Cart
+}

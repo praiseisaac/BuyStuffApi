@@ -21,9 +21,11 @@ namespace BuyStuffApi.Services
         Task<Seller> GetSeller(string email);
         Task<IEnumerable<Seller>> GetSellers();
         Task AddListing(int sellerId, int listingId);
+        Task RemoveListing(int sellerId, int listingId);
         Task AddItem(int id, int itemId);
         Task Update(Seller seller, string password);
         Task Delete(int id);
+        Task RemoveItem(int id, int itemId);
     }
 
     public class SellerService : ISellerService
@@ -85,7 +87,7 @@ namespace BuyStuffApi.Services
                 }
             );
 
-            var result = await GetSellers(await cmd.ExecuteReaderAsync());
+            var result = await GetSellersInfo(await cmd.ExecuteReaderAsync());
             var seller = result.SingleOrDefault(x => x._email == email);
 
             if (seller == null)
@@ -123,13 +125,16 @@ namespace BuyStuffApi.Services
             {
                 throw new AppException("User not found");
             }
-            try {
+            try
+            {
                 seller._listings.Add(listingId);
-            } catch (NullReferenceException ex) {
+            }
+            catch (NullReferenceException ex)
+            {
                 seller._listings = new List<int>();
                 seller._listings.Add(listingId);
             }
-            
+
 
             using var cmd = Db.Connection.CreateCommand();
             cmd.CommandText = @"UPDATE `sellers` SET `listings` = @listings WHERE `id` = @id;";
@@ -139,13 +144,45 @@ namespace BuyStuffApi.Services
                 {
                     ParameterName = "@listings",
                     DbType = DbType.String,
-                    Value = System.Text.Json.JsonSerializer.Serialize(seller._orders)
+                    Value = System.Text.Json.JsonSerializer.Serialize(seller._listings)
                 }
             );
             await cmd.ExecuteNonQueryAsync();
         }
 
-// NON FUNCTIONAL
+        public async Task RemoveListing(int id, int listingId)
+        {
+            var seller = GetSeller(id).Result;
+
+            if (seller == null)
+            {
+                throw new AppException("User not found");
+            }
+            try
+            {
+                seller._listings.Remove(listingId);
+            }
+            catch (NullReferenceException ex)
+            {
+                
+            }
+
+
+            using var cmd = Db.Connection.CreateCommand();
+            cmd.CommandText = @"UPDATE `sellers` SET `listings` = @listings WHERE `id` = @id;";
+            BindId(cmd, seller);
+            cmd.Parameters.Add(
+                new MySqlParameter
+                {
+                    ParameterName = "@listings",
+                    DbType = DbType.String,
+                    Value = System.Text.Json.JsonSerializer.Serialize(seller._listings)
+                }
+            );
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // NON FUNCTIONAL
         public async Task AddItem(int id, int itemId)
         {
             var seller = GetSeller(id).Result;
@@ -154,28 +191,64 @@ namespace BuyStuffApi.Services
             {
                 throw new AppException("User not found");
             }
-            try {
+            try
+            {
                 seller._items.Add(itemId);
-            } catch (NullReferenceException ex) {
+            }
+            catch (NullReferenceException ex)
+            {
                 seller._items = new List<int>();
                 seller._items.Add(itemId);
             }
-            
+
 
             using var cmd = Db.Connection.CreateCommand();
-            cmd.CommandText = @"UPDATE `sellers` SET `listings` = @listings WHERE `id` = @id;";
+            cmd.CommandText = @"UPDATE `sellers` SET `items` = @items WHERE `id` = @id;";
             BindId(cmd, seller);
             cmd.Parameters.Add(
                 new MySqlParameter
                 {
-                    ParameterName = "@listings",
+                    ParameterName = "@items",
                     DbType = DbType.String,
-                    Value = System.Text.Json.JsonSerializer.Serialize(seller._orders)
+                    Value = System.Text.Json.JsonSerializer.Serialize(seller._items)
                 }
             );
             await cmd.ExecuteNonQueryAsync();
         }
-        
+
+
+        public async Task RemoveItem(int id, int itemId)
+        {
+            var seller = GetSeller(id).Result;
+
+            if (seller == null)
+            {
+                throw new AppException("User not found");
+            }
+            try
+            {
+                seller._items.Remove(itemId);
+            }
+            catch (NullReferenceException ex)
+            {
+                throw new AppException("Item not found");
+            }
+
+
+            using var cmd = Db.Connection.CreateCommand();
+            cmd.CommandText = @"UPDATE `sellers` SET `items` = @items WHERE `id` = @id;";
+            BindId(cmd, seller);
+            cmd.Parameters.Add(
+                new MySqlParameter
+                {
+                    ParameterName = "@items",
+                    DbType = DbType.String,
+                    Value = System.Text.Json.JsonSerializer.Serialize(seller._items)
+                }
+            );
+            await cmd.ExecuteNonQueryAsync();
+        }
+
 
         // gets a user from the database by email
         public async Task<Seller> GetSeller(string email)
@@ -199,11 +272,11 @@ namespace BuyStuffApi.Services
             var sellers = new List<Seller>();
             using var cmd = Db.Connection.CreateCommand();
             cmd.CommandText = @"SELECT * FROM `sellers`";
-            
+
             return await ReadAllAsync(await cmd.ExecuteReaderAsync());
         }
 
-        
+
 
         // reads all sellers from the database for authentication
         private async Task<List<Seller>> GetSellers(DbDataReader reader)
@@ -213,8 +286,8 @@ namespace BuyStuffApi.Services
             {
                 while (await reader.ReadAsync())
                 {
-                    byte[] pass_hash = (byte[]) reader["password_hash"];
-                    byte[] pass_salt = (byte[]) reader["password_salt"];
+                    byte[] pass_hash = (byte[])reader["password_hash"];
+                    byte[] pass_salt = (byte[])reader["password_salt"];
 
                     // long retval_hash = reader.GetBytes(2, 0, pass_hash, 0, 500);
                     // long retval_salt = reader.GetBytes(11, 0, pass_hash, 0, 500);
@@ -227,9 +300,9 @@ namespace BuyStuffApi.Services
                         _email = reader.GetString(1),
                         _password_hash = pass_hash,
                         _password_salt = pass_salt,
-                        _username = (string) reader["username"],
-                        _first_name = (string) reader["first_name"],
-                        _last_name = (string) reader["last_name"],
+                        _username = (string)reader["username"],
+                        _first_name = (string)reader["first_name"],
+                        _last_name = (string)reader["last_name"],
                         // _password_hash = (byte[])(Convert.FromBase64String(reader.GetByte(2).ToString())),
                         // _password_salt = (byte[])(Convert.FromBase64String(reader.GetByte(11).ToString()))
                     };
@@ -256,9 +329,9 @@ namespace BuyStuffApi.Services
                     {
                         _Id = reader.GetInt32(0),
                         _email = reader.GetString(1),
-                        _username = (string) reader["username"],
-                        _first_name = (string) reader["first_name"],
-                        _last_name = (string) reader["last_name"],
+                        _username = (string)reader["username"],
+                        _first_name = (string)reader["first_name"],
+                        _last_name = (string)reader["last_name"],
                         // _password_hash = (byte[])(Convert.FromBase64String(reader.GetByte(2).ToString())),
                         // _password_salt = (byte[])(Convert.FromBase64String(reader.GetByte(11).ToString()))
                     };
@@ -288,8 +361,8 @@ namespace BuyStuffApi.Services
             {
                 while (await reader.ReadAsync())
                 {
-                    byte[] pass_hash = (byte[]) reader["password_hash"];
-                    byte[] pass_salt = (byte[]) reader["password_salt"];
+                    byte[] pass_hash = (byte[])reader["password_hash"];
+                    byte[] pass_salt = (byte[])reader["password_salt"];
 
                     // long retval_hash = reader.GetBytes(2, 0, pass_hash, 0, 500);
                     // long retval_salt = reader.GetBytes(11, 0, pass_hash, 0, 500);
@@ -351,13 +424,15 @@ namespace BuyStuffApi.Services
         {
             var seller = GetSeller(newSeller._Id).Result;
 
-            if (newSeller == null) {
+            if (newSeller == null)
+            {
                 throw new AppException("User not found");
             }
 
-            if (seller._email != newSeller._email) {
+            if (seller._email != newSeller._email)
+            {
                 if (GetSellers().Result.Any(x => x._email == newSeller._email))
-                throw new AppException("Email " + newSeller._email + " is already registered");
+                    throw new AppException("Email " + newSeller._email + " is already registered");
             }
 
             seller._first_name = newSeller._first_name;
@@ -365,7 +440,8 @@ namespace BuyStuffApi.Services
             seller._username = newSeller._username;
             seller._address = newSeller._address;
 
-            if (!string.IsNullOrWhiteSpace(password)) {
+            if (!string.IsNullOrWhiteSpace(password))
+            {
                 byte[] password_hash, password_salt;
                 CreatePasswordHash(password, out password_hash, out password_salt);
 
@@ -456,7 +532,7 @@ namespace BuyStuffApi.Services
         private async Task<List<Seller>> ReadAllAsync(DbDataReader reader)
         {
             var sellers = new List<Seller>();
-            
+
             using (reader)
             {
                 while (await reader.ReadAsync())
@@ -467,7 +543,7 @@ namespace BuyStuffApi.Services
 
                     var seller = new Seller
                     {
-                        _Id = (int) reader["id"],
+                        _Id = (int)reader["id"],
                         _email = (string)reader["email"],
                         _username = (string)reader["username"],
                         _first_name = (string)reader["first_name"],
@@ -484,7 +560,7 @@ namespace BuyStuffApi.Services
 
 
 
-        
+
 
         // public static IEnumerable<Tuple<T, U>> CombineWith<T, U>(this IEnumerable<T> first, IEnumerable<U> second)
         // {

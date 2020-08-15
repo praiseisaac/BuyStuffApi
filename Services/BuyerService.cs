@@ -25,7 +25,7 @@ namespace BuyStuffApi.Services
         Task Update(Buyer buyer, string password);
         Task Delete(int id);
         Task PlaceOrder(int id, int orderId);
-        
+
         Task AddBuyerReturn(int id, int orderId);
 
         Task AddItemToCart(int id, Item item);
@@ -91,8 +91,7 @@ namespace BuyStuffApi.Services
                 }
             );
 
-            var result = await GetBuyers(await cmd.ExecuteReaderAsync());
-            var buyer = result.SingleOrDefault(x => x._email == email);
+            var buyer = await GetBuyer(await cmd.ExecuteReaderAsync());
 
             if (buyer == null)
                 return null;
@@ -100,7 +99,7 @@ namespace BuyStuffApi.Services
             if (!VerifyPasswordHash(password, buyer._password_hash, buyer._password_salt))
                 return null;
 
-            return buyer;
+            return GetBuyersInfo(await cmd.ExecuteReaderAsync()).Result[0];
         }
 
         // get a user from the database by id
@@ -147,7 +146,7 @@ namespace BuyStuffApi.Services
         }
 
         // reads all buyers from the database for authentication
-        private async Task<List<Buyer>> GetBuyers(DbDataReader reader)
+        private async Task<Buyer> GetBuyer(DbDataReader reader)
         {
             var buyers = new List<Buyer>();
             using (reader)
@@ -168,16 +167,13 @@ namespace BuyStuffApi.Services
                         _email = reader.GetString(1),
                         _password_hash = pass_hash,
                         _password_salt = pass_salt,
-                        _username = (string)reader["username"],
-                        _first_name = (string)reader["first_name"],
-                        _last_name = (string)reader["last_name"],
                         // _password_hash = (byte[])(Convert.FromBase64String(reader.GetByte(2).ToString())),
                         // _password_salt = (byte[])(Convert.FromBase64String(reader.GetByte(11).ToString()))
                     };
                     buyers.Add(buyer);
                 }
             }
-            return buyers;
+            return buyers[0];
         }
         // -- NEW --
 
@@ -344,7 +340,7 @@ namespace BuyStuffApi.Services
             {
                 while (await reader.ReadAsync())
                 {
-                    List<Tuple<int, int>> cart = null;
+                    List<Item> cart = null;
                     List<int> orders = null;
                     List<int> returns = null;
                     Payment payment = null;
@@ -352,9 +348,7 @@ namespace BuyStuffApi.Services
                     // long retval_salt = reader.GetBytes(11, 0, pass_hash, 0, 500);
                     try
                     {
-                        var items = JsonConvert.DeserializeObject<Carts>((string)reader["cart"]).Ids.Select(p => p.Id).ToList();
-                        var quantities = JsonConvert.DeserializeObject<Carts>((string)reader["cart"]).Ids.Select(p => p.quantity).ToList();
-                        cart = Help.CombineWith(items, quantities).ToList();
+                        cart = JsonConvert.DeserializeObject<List<Item>>((string)reader["cart"]);
                     }
                     catch (InvalidCastException ex)
                     {
@@ -402,6 +396,7 @@ namespace BuyStuffApi.Services
                         _cart = cart,
                         _returns = returns,
                         _payment = payment,
+                        _address = (string)reader["address"]
                         // _password_hash = (byte[])(Convert.FromBase64String(reader.GetByte(2).ToString())),
                         // _password_salt = (byte[])(Convert.FromBase64String(reader.GetByte(11).ToString()))
                     };
@@ -424,8 +419,8 @@ namespace BuyStuffApi.Services
                     Value = buyer._email,
                 }
             );
-            var result = await GetBuyers(await cmd.ExecuteReaderAsync());
-            return result.Count > 0;
+            var result = await GetBuyer(await cmd.ExecuteReaderAsync());
+            return !(result == null);
         }
 
 

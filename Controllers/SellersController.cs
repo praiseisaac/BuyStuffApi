@@ -72,15 +72,9 @@ namespace BuyStuffApi.Controllers
             };
             var token = tokenHandler.CreateToken(tokenDescriptor);
             var tokenString = tokenHandler.WriteToken(token);
-
-            return Ok(new
-            {
-                Id = seller._Id,
-                Username = seller._username,
-                FirstName = seller._first_name,
-                LastName = seller._last_name,
-                Token = tokenString
-            });
+            var new_seller = MapResult(seller);
+            new_seller.Token = tokenString;
+            return Ok(new_seller);
 
         }
 
@@ -119,10 +113,10 @@ namespace BuyStuffApi.Controllers
             if (sellers == null) return Ok();
 
             foreach (var item in sellers)
-                {
-                    var sellerDto = MapResultExport(item);
-                    sellerDtos.Add(sellerDto);
-                };
+            {
+                var sellerDto = MapResultExport(item);
+                sellerDtos.Add(sellerDto);
+            };
 
             return Ok(sellerDtos);
             // } catch (NullReferenceException ex) {
@@ -173,11 +167,96 @@ namespace BuyStuffApi.Controllers
             _listingService = new ListingService(Db);
 
 
-
             try
             {
                 var listingId = _listingService.Create(id, listing).Result._Id;
                 await _sellerService.AddListing(id, listingId);
+                return Ok();
+            }
+            catch (AppException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        [HttpPut("{id}/cancelorder")]
+        public async Task<IActionResult> CancelOrder(int id, [FromBody] Order order)
+        {
+            // var buyer = MapResult(buyerDto);
+            // buyer._Id = id;
+
+            await Db.Connection.OpenAsync();
+            _sellerService = new SellerService(Db);
+            _orderService = new OrderService(Db);
+
+            if (id != order._seller_Id)
+            {
+                return BadRequest("Invalid request");
+            }
+            List<int> orderIds = new List<int>();
+
+
+            try
+            {
+                var status = _orderService.CancelOrder(order._Id).Result;
+                order._status = status;
+                return Ok(order);
+            }
+            catch (AppException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        [HttpPut("{id}/updatelisting")]
+        public async Task<IActionResult> UpdateListing(int id, [FromBody] Listing listing)
+        {
+            // var buyer = MapResult(buyerDto);
+            // buyer._Id = id;
+
+            await Db.Connection.OpenAsync();
+            _sellerService = new SellerService(Db);
+            _listingService = new ListingService(Db);
+
+
+            if (id != listing._seller_Id)
+            {
+                return BadRequest("Invalid request");
+            }
+
+            try
+            {
+                var listingId = _listingService.Update(listing).Result._Id;
+                await _sellerService.AddListing(id, listingId);
+                return Ok();
+            }
+            catch (AppException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+
+        [HttpPut("{id}/deletelisting")]
+        public async Task<IActionResult> DeleteListing(int id, [FromBody] Listing listing)
+        {
+            // var buyer = MapResult(buyerDto);
+            // buyer._Id = id;
+
+            await Db.Connection.OpenAsync();
+            _sellerService = new SellerService(Db);
+            _listingService = new ListingService(Db);
+
+
+            if (id != listing._seller_Id)
+            {
+                return BadRequest("Invalid request");
+            }
+
+            try
+            {
+                var listingId = _listingService.Delete(listing._Id);
+                await _sellerService.RemoveListing(id, listing._Id);
                 return Ok();
             }
             catch (AppException ex)
@@ -195,9 +274,7 @@ namespace BuyStuffApi.Controllers
             await Db.Connection.OpenAsync();
             _sellerService = new SellerService(Db);
             _itemService = new ItemService(Db);
-
-
-
+            
             try
             {
                 var itemId = _itemService.Create(id, item).Result._Id;
@@ -209,6 +286,56 @@ namespace BuyStuffApi.Controllers
                 return BadRequest(ex.Message);
             }
         }
+
+        [HttpPut("{id}/updateitem")]
+        public async Task<IActionResult> UpdateItem(int id, [FromBody] Item item)
+        {
+            // var buyer = MapResult(buyerDto);
+            // buyer._Id = id;
+
+            await Db.Connection.OpenAsync();
+            _sellerService = new SellerService(Db);
+            _itemService = new ItemService(Db);
+            if (id != item._seller_id)
+            {
+                return BadRequest("Invalid request");
+            }
+
+            try
+            {
+                var newItem = _itemService.Update(item).Result;
+                return Ok(newItem);
+            }
+            catch (AppException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+
+        [HttpPut("{id}/deleteitem")]
+        public async Task<IActionResult> DeleteItem(int id, [FromBody] Item item)
+        {
+            // var buyer = MapResult(buyerDto);
+            // buyer._Id = id;
+
+            await Db.Connection.OpenAsync();
+            _sellerService = new SellerService(Db);
+            _itemService = new ItemService(Db);
+
+            try
+            {
+                var itemId = _itemService.Delete(id);
+                await _sellerService.RemoveItem(id, item._Id);
+                return Ok(itemId);
+            }
+            catch (AppException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+
 
         [HttpGet("{id}/getlistings")]
         public async Task<IActionResult> GetListings(int id)
@@ -233,6 +360,7 @@ namespace BuyStuffApi.Controllers
                 return BadRequest(ex.Message);
             }
         }
+
 
         [HttpGet("{id}/getitems")]
         public async Task<IActionResult> GetItems(int id)
@@ -283,7 +411,7 @@ namespace BuyStuffApi.Controllers
         }
 
         [HttpGet("{sellerId}/fulfillorder/{orderId}")]
-        public async Task<IActionResult> fulfillOrder(int sellerId, int orderId)
+        public async Task<IActionResult> FulfillOrder(int sellerId, int orderId)
         {
             // var buyer = MapResult(buyerDto);
             // buyer._Id = id;
@@ -291,8 +419,6 @@ namespace BuyStuffApi.Controllers
             await Db.Connection.OpenAsync();
             _sellerService = new SellerService(Db);
             _orderService = new OrderService(Db);
-
-
 
             try
             {
@@ -344,13 +470,13 @@ namespace BuyStuffApi.Controllers
                 _first_name = seller._first_name,
                 _last_name = seller._last_name,
                 _address = seller._address,
-                _cart = seller._cart,
                 _orders = seller._orders,
                 _returns = seller._returns
             };
         }
 
-        private Object MapResultExport(Seller seller) {
+        private Object MapResultExport(Seller seller)
+        {
             return new
             {
                 _Id = seller._Id,
@@ -359,7 +485,6 @@ namespace BuyStuffApi.Controllers
                 _first_name = seller._first_name,
                 _last_name = seller._last_name,
                 _address = seller._address,
-                _cart = seller._cart,
                 _orders = seller._orders,
                 _returns = seller._returns
             };
@@ -375,7 +500,6 @@ namespace BuyStuffApi.Controllers
                 _first_name = seller._first_name,
                 _last_name = seller._last_name,
                 _address = seller._address,
-                _cart = seller._cart,
                 _orders = seller._orders,
                 _returns = seller._returns
             };

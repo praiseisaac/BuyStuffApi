@@ -12,10 +12,10 @@ namespace BuyStuffApi.Dtos
         public string _first_name { get; set; }
         public string _last_name { get; set; }
         public string _address { get; set; }
-        public List<Tuple<int, int>> _cart { get; set; }
         public List<int> _orders { get; set; }
         public List<int> _returns { get; set; }
         public Payment _payment { get; set; }
         public string _password { get; set; }
+        public string Token {get; set;}
     }
 }

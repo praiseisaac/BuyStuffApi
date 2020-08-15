@@ -20,10 +20,10 @@ namespace BuyStuffApi.Services
         Task<Item> GetItems(List<int> ids);
         // Task<List<Item>> GetSellerItems(int id);
         Task<IEnumerable<Item>> GetItems();
-        Task Update(Item item);
         Task UpdateQuantity(Item item);
         Task<IEnumerable<Item>> GetItems(Seller seller);
         Task Delete(int id);
+        Task<Item> Update(Item newItem);
     }
 
     public class ItemService : IItemService
@@ -148,7 +148,7 @@ namespace BuyStuffApi.Services
             return items;
         }
 
-        public async Task Update(Item newItem)
+        public async Task<Item> Update(Item newItem)
         {
             var item = GetItem(newItem._Id).Result;
 
@@ -163,6 +163,7 @@ namespace BuyStuffApi.Services
             BindParams(cmd, item);
             BindId(cmd, item);
             await cmd.ExecuteNonQueryAsync();
+            return item;
         }
 
         public async Task UpdateQuantity(Item newItem)

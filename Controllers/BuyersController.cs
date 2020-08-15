@@ -70,15 +70,9 @@ namespace BuyStuffApi.Controllers
             };
             var token = tokenHandler.CreateToken(tokenDescriptor);
             var tokenString = tokenHandler.WriteToken(token);
-
-            return Ok(new
-            {
-                Id = buyer._Id,
-                Username = buyer._username,
-                FirstName = buyer._first_name,
-                LastName = buyer._last_name,
-                Token = tokenString
-            });
+            var new_buyer = MapResult(buyer);
+            new_buyer.Token = tokenString;
+            return Ok(new_buyer);
 
         }
 
@@ -92,7 +86,7 @@ namespace BuyStuffApi.Controllers
             try
             {
                 await _buyerService.Create(buyer, buyerDto._password);
-                return Ok();
+                return Ok(buyer);
             }
             catch (AppException ex)
             {
@@ -279,7 +273,7 @@ namespace BuyStuffApi.Controllers
         }
 
         [HttpPut("{id}/cancelorder")]
-        public async Task<IActionResult> Checkout(int id, [FromBody] Order order)
+        public async Task<IActionResult> CancelOrder(int id, [FromBody] Order order)
         {
             // var buyer = MapResult(buyerDto);
             // buyer._Id = id;
