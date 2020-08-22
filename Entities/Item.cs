@@ -11,5 +11,6 @@ namespace BuyStuffApi.Entities
         public string _name { get; set; }
         public int _quantity{ get; set; }
         public int _seller_id { get; set; }
+        public double _price {get; set;}
     }
 }

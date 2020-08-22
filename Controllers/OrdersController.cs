@@ -18,25 +18,28 @@ namespace BuyStuffApi.Controllers
 {
     // [EnableCors("ReactPolicy")]
     [Route("api/[controller]")]
-    public class ListingsController : Controller
+    public class OrdersController : Controller
     {
-        private IListingService _listingService;
+        private IOrderService _orderService;
+        private IBuyerService _buyerService;
+        private ISellerService _sellerService;
         private readonly AppSettings _appSettings;
 
-        private IOrderService _orderService;
-
         public AppDb Db { get; }
-        public ListingsController(
-            IListingService listingService,
-            IOptions<AppSettings> appSettings,
+        public OrdersController(
             IOrderService orderService,
+            IOptions<AppSettings> appSettings,
+            IBuyerService buyerService,
+            ISellerService sellerService,
             AppDb db
         )
         {
             Db = db;
-            _listingService = listingService;
+            _orderService = orderService;
             _appSettings = appSettings.Value;
             _orderService = orderService;
+            _buyerService = buyerService;
+            _sellerService = sellerService;
         }
 
         [AllowAnonymous]
@@ -45,17 +48,17 @@ namespace BuyStuffApi.Controllers
         {
             // try {
             await Db.Connection.OpenAsync();
-            _listingService = new ListingService(Db);
-            var listings = _listingService.GetListings().Result;
-            var listingDtos = new List<Object>();
+            _orderService = new OrderService(_buyerService, Db);
+            var orders = _orderService.GetOrders().Result;
+            var orderDtos = new List<Object>();
 
-            // var testBuy = new Listing{
+            // var testBuy = new Order{
             //     _first_name = "praise",
             //     _last_name = "daramola"
             // };
 
-            if (listings == null) return Ok();
-            return Ok(listings);
+            if (orders == null) return Ok();
+            return Ok(orders);
             // } catch (NullReferenceException ex) {
             //     return Ok(ex.Message);
             // }
@@ -68,9 +71,9 @@ namespace BuyStuffApi.Controllers
             // try
             // {
             await Db.Connection.OpenAsync();
-            _listingService = new ListingService(Db);
-            var listing = _listingService.GetListing(id).Result;
-            return Ok(listing);
+            _orderService = new OrderService(_buyerService, Db);
+            var order = _orderService.GetOrder(id).Result;
+            return Ok(order);
             // }
             // catch (NullReferenceException ex)
             // {
@@ -78,25 +81,5 @@ namespace BuyStuffApi.Controllers
             // }
 
         }
-
-        [HttpGet("name={name}")]
-        public async Task<IActionResult> GetByName(string name)
-        {
-            // try
-            // {
-            await Db.Connection.OpenAsync();
-            _listingService = new ListingService(Db);
-            var listing = _listingService.GetListings(name).Result;
-            return Ok(listing);
-
-        }
-
-        public async Task<Object> GetSeller(int id)
-        {
-            Mapper mapper = new Mapper();
-            var seller = await _listingService.GetSeller(id);
-            return Ok(mapper.MapResultInfo(seller));
-        }
-
     }
 }

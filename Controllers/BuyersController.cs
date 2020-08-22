@@ -26,13 +26,15 @@ namespace BuyStuffApi.Controllers
 
         private IOrderService _orderService;
         private IItemService _itemService;
-
+        private IListingService _listingService;
+        private Mapper mapper = new Mapper();
         public AppDb Db { get; }
         public BuyersController(
             IBuyerService buyerService,
             IOptions<AppSettings> appSettings,
             IOrderService orderService,
             IItemService itemService,
+            IListingService listingService,
             AppDb db
         )
         {
@@ -41,6 +43,7 @@ namespace BuyStuffApi.Controllers
             _appSettings = appSettings.Value;
             _orderService = orderService;
             _itemService = itemService;
+            _listingService = listingService;
         }
 
 
@@ -70,7 +73,7 @@ namespace BuyStuffApi.Controllers
             };
             var token = tokenHandler.CreateToken(tokenDescriptor);
             var tokenString = tokenHandler.WriteToken(token);
-            var new_buyer = MapResult(buyer);
+            var new_buyer = mapper.MapResult(buyer);
             new_buyer.Token = tokenString;
             return Ok(new_buyer);
 
@@ -80,7 +83,7 @@ namespace BuyStuffApi.Controllers
         [HttpPost]
         public async Task<IActionResult> Register([FromBody] BuyerDto buyerDto)
         {
-            Buyer buyer = MapResult(buyerDto);
+            Buyer buyer = mapper.MapResult(buyerDto);
             await Db.Connection.OpenAsync();
             _buyerService = new BuyerService(Db);
             try
@@ -112,7 +115,7 @@ namespace BuyStuffApi.Controllers
 
             foreach (var item in buyers)
             {
-                var buyerDto = MapResultExport(item);
+                var buyerDto = mapper.MapResultExport(item);
                 buyerDtos.Add(buyerDto);
             };
 
@@ -131,7 +134,7 @@ namespace BuyStuffApi.Controllers
             await Db.Connection.OpenAsync();
             _buyerService = new BuyerService(Db);
             var buyer = _buyerService.GetBuyer(id).Result;
-            var buyerDto = MapResult(buyer);
+            var buyerDto = mapper.MapResult(buyer);
             return Ok(buyerDto);
             // }
             // catch (NullReferenceException ex)
@@ -151,7 +154,7 @@ namespace BuyStuffApi.Controllers
             await Db.Connection.OpenAsync();
             _buyerService = new BuyerService(Db);
             var buyer = _buyerService.GetBuyer(email).Result;
-            var buyerDto = MapResult(buyer);
+            var buyerDto = mapper.MapResult(buyer);
             return Ok(buyerDto);
             // }
             // catch (NullReferenceException ex)
@@ -164,7 +167,7 @@ namespace BuyStuffApi.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] BuyerDto buyerDto)
         {
-            var buyer = MapResult(buyerDto);
+            var buyer = mapper.MapResult(buyerDto);
             buyer._Id = id;
             await Db.Connection.OpenAsync();
             _buyerService = new BuyerService(Db);
@@ -180,37 +183,11 @@ namespace BuyStuffApi.Controllers
             }
         }
 
-
-
-        [HttpPut("{id}/createorder")]
-        public async Task<IActionResult> CreateOrder(int id, [FromBody] Order order)
-        {
-            // var buyer = MapResult(buyerDto);
-            // buyer._Id = id;
-
-            await Db.Connection.OpenAsync();
-            _buyerService = new BuyerService(Db);
-            _orderService = new OrderService(Db);
-
-
-
-            try
-            {
-                var orderId = _orderService.Create(id, order).Result._Id;
-                await _buyerService.PlaceOrder(id, orderId);
-                return Ok();
-            }
-            catch (AppException ex)
-            {
-                return BadRequest(ex.Message);
-            }
-        }
-
         // [AllowAnonymous]
         // [HttpPut("addtocart")]
         // public async Task<IActionResult> AddToCart([FromBody] Item item)
         // {
-        //     // var buyer = MapResult(buyerDto);
+        //     // var buyer = mapper.MapResult(buyerDto);
         //     // buyer._Id = id;
 
         //     await Db.Connection.OpenAsync();
@@ -231,18 +208,43 @@ namespace BuyStuffApi.Controllers
 
        
         [HttpPut("{id}/addtocart")]
-        public async Task<IActionResult> AddToCart(int id, [FromBody] Item item)
+        public async Task<IActionResult> AddToCart(int id, [FromBody] Listing listing)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
 
             await Db.Connection.OpenAsync();
             _buyerService = new BuyerService(Db);
-            _itemService = new ItemService(Db);
+            _listingService = new ListingService(Db);
+            var dbListing = _listingService.GetListing(listing._Id).Result;
+
             var buyer = _buyerService.GetBuyer(id).Result;
             try
             {
-                await _buyerService.AddItemToCart(id, item);
+                await _buyerService.AddToCart(id, dbListing);
+                return Ok();
+            }
+            catch (AppException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        [HttpPut("{id}/addtemptocart")]
+        public async Task<IActionResult> AddToCart(int id, [FromBody] List<int> listing)
+        {
+            // var buyer = mapper.MapResult(buyerDto);
+            // buyer._Id = id;
+
+            await Db.Connection.OpenAsync();
+            _buyerService = new BuyerService(Db);
+            _listingService = new ListingService(Db);
+            var dbListing = _listingService.GetListings(listing).Result;
+
+            var buyer = _buyerService.GetBuyer(id).Result;
+            try
+            {
+                await _buyerService.AddToCart(id, dbListing);
                 return Ok();
             }
             catch (AppException ex)
@@ -252,9 +254,9 @@ namespace BuyStuffApi.Controllers
         }
 
         [HttpPut("{id}/removefromcart")]
-        public async Task<IActionResult> RemoveFromCart(int id, [FromBody] Item item)
+        public async Task<IActionResult> RemoveFromCart(int id, [FromBody] Listing listing)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
 
             await Db.Connection.OpenAsync();
@@ -263,8 +265,8 @@ namespace BuyStuffApi.Controllers
             var buyer = _buyerService.GetBuyer(id).Result;
             try
             {
-                await _buyerService.RemoveItemFromCart(id, item);
-                return Ok();
+                buyer = _buyerService.RemoveFromCart(id, listing).Result;
+                return buyer._cart.Count > 0 ? Ok(buyer._cart) : Ok(new List<int>());
             }
             catch (AppException ex)
             {
@@ -275,19 +277,19 @@ namespace BuyStuffApi.Controllers
         [HttpPut("{id}/cancelorder")]
         public async Task<IActionResult> CancelOrder(int id, [FromBody] Order order)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
 
             await Db.Connection.OpenAsync();
             _buyerService = new BuyerService(Db);
-            _orderService = new OrderService(Db);
+            _orderService = new OrderService(_buyerService, Db);
             List<int> orderIds = new List<int>();
 
 
             try
             {
-                var status = _orderService.CancelOrder(order._Id).Result;
-                order._status = status;
+                var status = _orderService.CancelOrder(order._Id);
+                order._status = status.Result;
                 return Ok(order);
             }
             catch (AppException ex)
@@ -296,15 +298,17 @@ namespace BuyStuffApi.Controllers
             }
         }
 
-        [HttpPut("{id}/createorder")]
+
+
+        [HttpPut("{id}/checkout")]
         public async Task<IActionResult> Checkout(int id, [FromBody] List<Order> orders)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
 
             await Db.Connection.OpenAsync();
             _buyerService = new BuyerService(Db);
-            _orderService = new OrderService(Db);
+            _orderService = new OrderService(_buyerService, Db);
             List<int> orderIds = new List<int>();
 
 
@@ -323,22 +327,53 @@ namespace BuyStuffApi.Controllers
             }
         }
 
-        [HttpGet("{id}/getorders")]
-        public async Task<IActionResult> GetOrders(int id)
+        [HttpGet("{id}/cart")]
+        public async Task<IActionResult> GetCart(int id)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
 
             await Db.Connection.OpenAsync();
             _buyerService = new BuyerService(Db);
-            _orderService = new OrderService(Db);
+            _orderService = new OrderService(_buyerService, Db);
+            _listingService = new ListingService(Db);
+            var tempCart = new Listing();
 
+            try
+            {
+                var buyer = _buyerService.GetBuyer(id).Result;
+                for (int i = 0; i < buyer._cart.Count; i++) {
+                    tempCart = await _listingService.GetListing(buyer._cart[i]._Id);
+                    
+                    buyer._cart[i]._price = tempCart._price * buyer._cart[i]._item._quantity;
+                    
+                }
+                return Ok(buyer._cart);
+            }
+            catch (AppException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        [HttpGet("{id}/getorders")]
+        public async Task<IActionResult> GetOrders(int id)
+        {
+            // var buyer = mapper.MapResult(buyerDto);
+            // buyer._Id = id;
+
+            await Db.Connection.OpenAsync();
+            _buyerService = new BuyerService(Db);
+            _orderService = new OrderService(_buyerService, Db);
+
+            
 
 
             try
             {
                 var buyerId = _buyerService.GetBuyer(id).Result;
                 var orders = _orderService.GetOrders(buyerId);
+
                 return Ok(orders.Result);
             }
             catch (AppException ex)
@@ -350,7 +385,7 @@ namespace BuyStuffApi.Controllers
         [HttpPut("return/id={id}/orderId={orderId}")]
         public async Task<IActionResult> AddReturn(int id, int orderId)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
             await Db.Connection.OpenAsync();
             _buyerService = new BuyerService(Db);
@@ -378,53 +413,6 @@ namespace BuyStuffApi.Controllers
 
 
 
-        private BuyerDto MapResult(Buyer buyer)
-        {
-            return new BuyerDto
-            {
-                _Id = buyer._Id,
-                _username = buyer._username,
-                _email = buyer._email,
-                _first_name = buyer._first_name,
-                _last_name = buyer._last_name,
-                _address = buyer._address,
-                _cart = buyer._cart,
-                _orders = buyer._orders,
-                _returns = buyer._returns
-            };
-        }
-
-        private Object MapResultExport(Buyer buyer)
-        {
-            return new
-            {
-                _Id = buyer._Id,
-                _username = buyer._username,
-                _email = buyer._email,
-                _first_name = buyer._first_name,
-                _last_name = buyer._last_name,
-                _address = buyer._address,
-                _cart = buyer._cart,
-                _orders = buyer._orders,
-                _returns = buyer._returns
-            };
-        }
-
-        private Buyer MapResult(BuyerDto buyer)
-        {
-            return new Buyer
-            {
-                _Id = buyer._Id,
-                _username = buyer._username,
-                _email = buyer._email,
-                _first_name = buyer._first_name,
-                _last_name = buyer._last_name,
-                _address = buyer._address,
-                _cart = buyer._cart,
-                _orders = buyer._orders,
-                _returns = buyer._returns
-            };
-
-        }
+        
     }
 }

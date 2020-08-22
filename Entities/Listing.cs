@@ -21,6 +21,7 @@ namespace BuyStuffApi.Entities
         public Item _item {get; set;}
         public List<string> _images {get;set;}
         public int _rating {get; set;}
+        public String _seller_name {get; set;}
         
     }
 }

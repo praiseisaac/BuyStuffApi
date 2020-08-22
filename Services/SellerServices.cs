@@ -26,6 +26,7 @@ namespace BuyStuffApi.Services
         Task Update(Seller seller, string password);
         Task Delete(int id);
         Task RemoveItem(int id, int itemId);
+        Task AddOrder(int id, int orderId);
     }
 
     public class SellerService : ISellerService
@@ -103,7 +104,7 @@ namespace BuyStuffApi.Services
         public async Task<Seller> GetSeller(int id)
         {
             using var cmd = Db?.Connection.CreateCommand();
-            cmd.CommandText = @"SELECT `id`, `email`, `username`, `first_name`, `last_name`, `address` FROM `sellers` WHERE `id` = @id";
+            cmd.CommandText = @"SELECT * FROM `sellers` WHERE `id` = @id";
             cmd.Parameters.Add(
                 new MySqlParameter
                 {
@@ -149,6 +150,41 @@ namespace BuyStuffApi.Services
             );
             await cmd.ExecuteNonQueryAsync();
         }
+
+
+        public async Task AddOrder(int id, int orderId)
+        {
+            var seller = GetSeller(id).Result;
+
+            if (seller == null)
+            {
+                throw new AppException("User not found");
+            }
+            try
+            {
+                seller._orders.Add(orderId);
+            }
+            catch (NullReferenceException ex)
+            {
+                seller._orders = new List<int>();
+                seller._orders.Add(orderId);
+            }
+
+
+            using var cmd = Db.Connection.CreateCommand();
+            cmd.CommandText = @"UPDATE `sellers` SET `orders` = @orders WHERE `id` = @id;";
+            BindId(cmd, seller);
+            cmd.Parameters.Add(
+                new MySqlParameter
+                {
+                    ParameterName = "@orders",
+                    DbType = DbType.String,
+                    Value = System.Text.Json.JsonSerializer.Serialize(seller._orders)
+                }
+            );
+            await cmd.ExecuteNonQueryAsync();
+        }
+
 
         public async Task RemoveListing(int id, int listingId)
         {
@@ -320,6 +356,41 @@ namespace BuyStuffApi.Services
                 while (await reader.ReadAsync())
                 {
 
+                    List<int> orders = null;
+                    List<int> returns = null;
+                    Payment payment = null;
+                    // long retval_hash = reader.GetBytes(2, 0, pass_hash, 0, 500);
+                    // long retval_salt = reader.GetBytes(11, 0, pass_hash, 0, 500);
+
+                    try
+                    {
+                        returns = JsonConvert.DeserializeObject<List<int>>((string)reader["returns"]);
+                    }
+                    catch (InvalidCastException ex)
+                    {
+
+                    }
+
+                    try
+                    {
+                        orders = JsonConvert.DeserializeObject<List<int>>((string)reader["orders"]);
+                    }
+                    catch (InvalidCastException ex)
+                    {
+
+                    }
+
+
+                    try
+                    {
+                        payment = JsonConvert.DeserializeObject<Payment>((string)reader["payment"]);
+                    }
+                    catch (InvalidCastException ex)
+                    {
+
+                    }
+
+
                     // long retval_hash = reader.GetBytes(2, 0, pass_hash, 0, 500);
                     // long retval_salt = reader.GetBytes(11, 0, pass_hash, 0, 500);
 
@@ -332,6 +403,9 @@ namespace BuyStuffApi.Services
                         _username = (string)reader["username"],
                         _first_name = (string)reader["first_name"],
                         _last_name = (string)reader["last_name"],
+                        _orders = orders,
+                        _payment = payment,
+                        _address = (string)reader["address"]
                         // _password_hash = (byte[])(Convert.FromBase64String(reader.GetByte(2).ToString())),
                         // _password_salt = (byte[])(Convert.FromBase64String(reader.GetByte(11).ToString()))
                     };

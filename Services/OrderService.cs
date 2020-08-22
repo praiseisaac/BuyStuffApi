@@ -20,6 +20,7 @@ namespace BuyStuffApi.Services
         Task<List<Order>> GetOrders(List<int> ids);
         Task<List<Order>> GetOrders(Seller seller);
         Task<List<Order>> GetOrders(Buyer buyer);
+        Task<IEnumerable<Order>> GetOrders();
         Task<OrderStatus> CancelOrder(int id);
         Task Delete(int id);
         Task<Order> FulfillOrder(int sellerId, int orderId);
@@ -29,14 +30,23 @@ namespace BuyStuffApi.Services
     public class OrderService : IOrderService
     {
         internal AppDb Db { get; set; }
+        private IBuyerService _buyerService;
+        private ISellerService _sellerService;
         public OrderService()
         {
 
         }
 
         // Constructor
-        internal OrderService(AppDb db)
+        internal OrderService(IBuyerService buyerService, AppDb db)
         {
+            _buyerService = buyerService;
+            Db = db;
+        }
+
+        internal OrderService(ISellerService sellerService, AppDb db)
+        {
+            _sellerService = sellerService;
             Db = db;
         }
 
@@ -47,6 +57,40 @@ namespace BuyStuffApi.Services
             // order._date_created = DateTime.Now;
             order._status = OrderStatus.ORDERED;
             order._buyer_Id = buyer_id;
+            var buyer = _buyerService.GetBuyer(buyer_id).Result;
+            _sellerService = new SellerService(Db);
+
+            
+
+            // -- get seller info --
+            // order._seller_Id = ;
+
+            // -- shipping --
+            Random random = new Random();
+            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            order._tracking_number = new string(Enumerable.Repeat(chars, 20).Select(s => s[random.Next(s.Length)]).ToArray());
+            // -- shiping end --
+
+            cmd.CommandText = @"INSERT INTO `orders` (`items`, `total_cost`, `date_created`, `tracking_number`, `delivery_address`, `shipping_cost`, `status`, `buyer_id`, `seller_id`) VALUES (@items, @total_cost, @date_created, @tracking_number, @delivery_address, @shipping_cost, @status, @buyer_id, @seller_id);";
+
+            BindParams(cmd, order);
+            await cmd.ExecuteNonQueryAsync();
+            order._Id = (int)cmd.LastInsertedId;
+            await _buyerService.AddOrder(buyer_id, order._Id);
+            await _sellerService.AddOrder(order._seller_Id, order._Id);
+            return order;
+        }
+
+        public async Task<Order> Create(Seller seller, Order order)
+        {
+            using var cmd = Db.Connection.CreateCommand();
+            // order._date_created = DateTime.Now;
+            order._status = OrderStatus.ORDERED;
+            order._seller_Id = seller._Id;
+            var buyer = _sellerService.GetSeller(seller._Id).Result;
+
+            await _sellerService.AddOrder(seller._Id, order._Id);
+            await _buyerService.AddOrder(seller._Id, order._Id);
 
             // -- get seller info --
             // order._seller_Id = ;
@@ -125,7 +169,7 @@ namespace BuyStuffApi.Services
         public async Task<Order> GetOrder(int id)
         {
             using var cmd = Db?.Connection.CreateCommand();
-            cmd.CommandText = @"SELECT * FROM `orders` WHERE `id` IN {@id}";
+            cmd.CommandText = @"SELECT * FROM `orders` WHERE `id` = @id";
             cmd.Parameters.Add(
                 new MySqlParameter
                 {
@@ -281,19 +325,12 @@ namespace BuyStuffApi.Services
             cmd.Parameters.Add(
                 new MySqlParameter
                 {
-                    ParameterName = "@id",
-                    DbType = DbType.Int32,
-                    Value = id
-                }
-            );
-            cmd.Parameters.Add(
-                new MySqlParameter
-                {
                     ParameterName = "@status",
                     Value = "CANCELLED"
                 }
             );
             BindId(cmd, order);
+            order._status = OrderStatus.CANCELLED;
             await cmd.ExecuteNonQueryAsync();
             return order._status;
         }

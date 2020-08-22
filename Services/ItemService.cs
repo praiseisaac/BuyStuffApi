@@ -89,7 +89,7 @@ namespace BuyStuffApi.Services
         public async Task<Item> GetItem(int id)
         {
             using var cmd = Db?.Connection.CreateCommand();
-            cmd.CommandText = @"SELECT * FROM `items` WHERE `id` IN {@id}";
+            cmd.CommandText = @"SELECT * FROM `items` WHERE `id` = @id";
             cmd.Parameters.Add(
                 new MySqlParameter
                 {

@@ -26,6 +26,7 @@ namespace BuyStuffApi.Controllers
         private IOrderService _orderService;
         private IListingService _listingService;
         private IItemService _itemService;
+        private Mapper mapper = new Mapper();
 
         public AppDb Db { get; }
         public SellersController(
@@ -72,7 +73,7 @@ namespace BuyStuffApi.Controllers
             };
             var token = tokenHandler.CreateToken(tokenDescriptor);
             var tokenString = tokenHandler.WriteToken(token);
-            var new_seller = MapResult(seller);
+            var new_seller = mapper.MapResult(seller);
             new_seller.Token = tokenString;
             return Ok(new_seller);
 
@@ -82,7 +83,7 @@ namespace BuyStuffApi.Controllers
         [HttpPost]
         public async Task<IActionResult> Register([FromBody] SellerDto sellerDto)
         {
-            Seller seller = MapResult(sellerDto);
+            Seller seller = mapper.MapResult(sellerDto);
             await Db.Connection.OpenAsync();
             _sellerService = new SellerService(Db);
             try
@@ -114,12 +115,31 @@ namespace BuyStuffApi.Controllers
 
             foreach (var item in sellers)
             {
-                var sellerDto = MapResultExport(item);
+                var sellerDto = mapper.MapResultExport(item);
                 sellerDtos.Add(sellerDto);
             };
 
             return Ok(sellerDtos);
             // } catch (NullReferenceException ex) {
+            //     return Ok(ex.Message);
+            // }
+
+        }
+
+        [AllowAnonymous]
+        [HttpGet("{id}/sellerinfo")]
+        public async Task<IActionResult> GetSellerInfo(int id)
+        {
+            // try
+            // {
+            await Db.Connection.OpenAsync();
+            _sellerService = new SellerService(Db);
+            var seller = _sellerService.GetSeller(id).Result;
+            var sellerDto = mapper.MapResultInfo(seller);
+            return Ok(sellerDto);
+            // }
+            // catch (NullReferenceException ex)
+            // {
             //     return Ok(ex.Message);
             // }
 
@@ -133,7 +153,7 @@ namespace BuyStuffApi.Controllers
             await Db.Connection.OpenAsync();
             _sellerService = new SellerService(Db);
             var seller = _sellerService.GetSeller(id).Result;
-            var sellerDto = MapResult(seller);
+            var sellerDto = mapper.MapResultExport(seller);
             return Ok(sellerDto);
             // }
             // catch (NullReferenceException ex)
@@ -151,7 +171,7 @@ namespace BuyStuffApi.Controllers
             await Db.Connection.OpenAsync();
             _sellerService = new SellerService(Db);
             var seller = _sellerService.GetSeller(email).Result;
-            var sellerDto = MapResult(seller);
+            var sellerDto = mapper.MapResult(seller);
             return Ok(sellerDto);
 
         }
@@ -159,17 +179,17 @@ namespace BuyStuffApi.Controllers
         [HttpPut("{id}/createlisting")]
         public async Task<IActionResult> CreateListing(int id, [FromBody] Listing listing)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
 
             await Db.Connection.OpenAsync();
             _sellerService = new SellerService(Db);
             _listingService = new ListingService(Db);
-
+            Seller seller = await _sellerService.GetSeller(id);
 
             try
             {
-                var listingId = _listingService.Create(id, listing).Result._Id;
+                var listingId = _listingService.Create(id, seller._username, listing).Result._Id;
                 await _sellerService.AddListing(id, listingId);
                 return Ok();
             }
@@ -182,12 +202,12 @@ namespace BuyStuffApi.Controllers
         [HttpPut("{id}/cancelorder")]
         public async Task<IActionResult> CancelOrder(int id, [FromBody] Order order)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
 
             await Db.Connection.OpenAsync();
             _sellerService = new SellerService(Db);
-            _orderService = new OrderService(Db);
+            _orderService = new OrderService(_sellerService, Db);
 
             if (id != order._seller_Id)
             {
@@ -211,7 +231,7 @@ namespace BuyStuffApi.Controllers
         [HttpPut("{id}/updatelisting")]
         public async Task<IActionResult> UpdateListing(int id, [FromBody] Listing listing)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
 
             await Db.Connection.OpenAsync();
@@ -240,7 +260,7 @@ namespace BuyStuffApi.Controllers
         [HttpPut("{id}/deletelisting")]
         public async Task<IActionResult> DeleteListing(int id, [FromBody] Listing listing)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
 
             await Db.Connection.OpenAsync();
@@ -268,7 +288,7 @@ namespace BuyStuffApi.Controllers
         [HttpPut("{id}/createitem")]
         public async Task<IActionResult> CreateItem(int id, [FromBody] Item item)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
 
             await Db.Connection.OpenAsync();
@@ -290,7 +310,7 @@ namespace BuyStuffApi.Controllers
         [HttpPut("{id}/updateitem")]
         public async Task<IActionResult> UpdateItem(int id, [FromBody] Item item)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
 
             await Db.Connection.OpenAsync();
@@ -316,7 +336,7 @@ namespace BuyStuffApi.Controllers
         [HttpPut("{id}/deleteitem")]
         public async Task<IActionResult> DeleteItem(int id, [FromBody] Item item)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
 
             await Db.Connection.OpenAsync();
@@ -340,7 +360,7 @@ namespace BuyStuffApi.Controllers
         [HttpGet("{id}/getlistings")]
         public async Task<IActionResult> GetListings(int id)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
 
             await Db.Connection.OpenAsync();
@@ -365,7 +385,7 @@ namespace BuyStuffApi.Controllers
         [HttpGet("{id}/getitems")]
         public async Task<IActionResult> GetItems(int id)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
 
             await Db.Connection.OpenAsync();
@@ -389,12 +409,12 @@ namespace BuyStuffApi.Controllers
         [HttpGet("{sellerId}/getorders")]
         public async Task<IActionResult> GetOrders(int sellerId)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
 
             await Db.Connection.OpenAsync();
             _sellerService = new SellerService(Db);
-            _orderService = new OrderService(Db);
+            _orderService = new OrderService(_sellerService, Db);
 
 
 
@@ -413,12 +433,12 @@ namespace BuyStuffApi.Controllers
         [HttpGet("{sellerId}/fulfillorder/{orderId}")]
         public async Task<IActionResult> FulfillOrder(int sellerId, int orderId)
         {
-            // var buyer = MapResult(buyerDto);
+            // var buyer = mapper.MapResult(buyerDto);
             // buyer._Id = id;
 
             await Db.Connection.OpenAsync();
             _sellerService = new SellerService(Db);
-            _orderService = new OrderService(Db);
+            _orderService = new OrderService(_sellerService, Db);
 
             try
             {
@@ -435,13 +455,12 @@ namespace BuyStuffApi.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] SellerDto sellerDto)
         {
-            var seller = MapResult(sellerDto);
+            var seller = mapper.MapResult(sellerDto);
             seller._Id = id;
             await Db.Connection.OpenAsync();
             _sellerService = new SellerService(Db);
             try
             {
-
                 await _sellerService.Update(seller, sellerDto._password);
                 return Ok();
             }
@@ -460,50 +479,6 @@ namespace BuyStuffApi.Controllers
             return Ok();
         }
 
-        private SellerDto MapResult(Seller seller)
-        {
-            return new SellerDto
-            {
-                _Id = seller._Id,
-                _username = seller._username,
-                _email = seller._email,
-                _first_name = seller._first_name,
-                _last_name = seller._last_name,
-                _address = seller._address,
-                _orders = seller._orders,
-                _returns = seller._returns
-            };
-        }
-
-        private Object MapResultExport(Seller seller)
-        {
-            return new
-            {
-                _Id = seller._Id,
-                _username = seller._username,
-                _email = seller._email,
-                _first_name = seller._first_name,
-                _last_name = seller._last_name,
-                _address = seller._address,
-                _orders = seller._orders,
-                _returns = seller._returns
-            };
-        }
-
-        private Seller MapResult(SellerDto seller)
-        {
-            return new Seller
-            {
-                _Id = seller._Id,
-                _username = seller._username,
-                _email = seller._email,
-                _first_name = seller._first_name,
-                _last_name = seller._last_name,
-                _address = seller._address,
-                _orders = seller._orders,
-                _returns = seller._returns
-            };
-
-        }
+        
     }
 }

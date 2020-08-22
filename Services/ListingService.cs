@@ -15,7 +15,7 @@ namespace BuyStuffApi.Services
 {
     public interface IListingService
     {
-        Task<Listing> Create(int buyer_id, Listing listing);
+        Task<Listing> Create(int buyer_id, string seller_name, Listing listing);
         Task<Listing> GetListing(int id);
         // Task<List<Listing>> GetListings(List<int> ids);
         Task<List<Listing>> GetListings(Seller seller);
@@ -25,11 +25,14 @@ namespace BuyStuffApi.Services
         Task Delete(int id);
         Task<List<Listing>> GetListings(string name);
         Task<List<Listing>> GetListings(int id);
+        Task<Seller> GetSeller(int id);
+        Task<List<Listing>> GetListings(List<int> id);
     }
 
     public class ListingService : IListingService
     {
         internal AppDb Db { get; set; }
+        private ISellerService _sellerService;
         public ListingService()
         {
 
@@ -41,15 +44,16 @@ namespace BuyStuffApi.Services
             Db = db;
         }
 
-        // used to create a user
-        public async Task<Listing> Create(int seller_id, Listing listing)
+        // used to create a listing
+        public async Task<Listing> Create(int seller_id, string seller_name, Listing listing)
         {
             using var cmd = Db.Connection.CreateCommand();
             // listing._date_created = DateTime.Now;
             listing._status = ListingStatus.SCHEDULED;
             listing._seller_Id = seller_id;
+            listing._seller_name = seller_name;
 
-            cmd.CommandText = @"INSERT INTO `listings` (`item`, `date_created`, `title`, `description`, `price`, `date_modified`, `shipping_cost`, `seller_id`, `status`) VALUES (@item, @date_created, @title, @description, @price, @date_modified, @shipping_cost, @seller_id, @status);";
+            cmd.CommandText = @"INSERT INTO `listings` (`item`, `date_created`, `title`, `description`, `price`, `date_modified`, `shipping_cost`, `seller_id`, `seller_name`, `status`) VALUES (@item, @date_created, @title, @description, @price, @date_modified, @shipping_cost, @seller_id, @seller_name`, @status);";
             cmd.Parameters.Add(new MySqlParameter
             {
                 ParameterName = "@date_created",
@@ -68,7 +72,7 @@ namespace BuyStuffApi.Services
             using var cmd = Db.Connection.CreateCommand();
             // listing._date_created = DateTime.Now;
 
-            cmd.CommandText = @"UPDATE `listings` SET `item` = @item, `title` = @title, `description` = @description, `price` = @price, `date_modified` = @date_modified, `shipping_cost` = @shippint_cost, `seller_id` = @seller_id, `status` = @status WHERE `id` = @id;";
+            cmd.CommandText = @"UPDATE `listings` SET `item` = @item, `title` = @title, `description` = @description, `price` = @price, `date_modified` = @date_modified, `shipping_cost` = @shipping_cost, `seller_id` = @seller_id, `status` = @status WHERE `id` = @id;";
 
 
             BindParams(cmd, listing);
@@ -90,6 +94,17 @@ namespace BuyStuffApi.Services
             );
             var result = await GetListingsInfo(await cmd.ExecuteReaderAsync());
             return result.Count > 0 ? result : null;
+        }
+
+        public async Task<List<Listing>> GetListings(List<int> id)
+        {
+            var listings = new List<Listing>();
+            var temp = new Listing();;
+            for (int i = 0; i < id.Count; i++) {
+                temp = await GetListing(id[i]);
+                listings.Add(temp);
+            }
+            return listings.Count > 0 ? listings : null;
         }
 
         // get a user from the database by id
@@ -137,6 +152,14 @@ namespace BuyStuffApi.Services
             );
             var result = await GetListingsInfo(await cmd.ExecuteReaderAsync());
             return result.Count > 0 ? result[0] : null;
+        }
+
+        public async Task<Seller> GetSeller(int id)
+        {
+            Listing listing = await GetListing(id);
+            _sellerService = new SellerService(Db);
+            Seller seller = await _sellerService.GetSeller(listing._seller_Id);
+            return seller;
         }
 
         public async Task<IEnumerable<Listing>> GetListings()
@@ -188,7 +211,8 @@ namespace BuyStuffApi.Services
                         _date_modified = reader.GetDateTime(1),
                         _seller_Id = (int)reader["seller_id"],
                         _images = images,
-                        _rating = (int) reader["rating"]
+                        _rating = (int) reader["rating"],
+                        _seller_name = (string)reader["seller_name"]
                     };
 
                     listings.Add(listing);
@@ -276,6 +300,12 @@ namespace BuyStuffApi.Services
                 ParameterName = "@seller_id",
                 DbType = DbType.Int32,
                 Value = listing._seller_Id,
+            });
+            cmd.Parameters.Add(new MySqlParameter
+            {
+                ParameterName = "@seller_name",
+                DbType = DbType.String,
+                Value = listing._seller_name,
             });
         }
 

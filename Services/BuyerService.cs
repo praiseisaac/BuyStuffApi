@@ -28,8 +28,10 @@ namespace BuyStuffApi.Services
 
         Task AddBuyerReturn(int id, int orderId);
 
-        Task AddItemToCart(int id, Item item);
-        Task RemoveItemFromCart(int id, Item item);
+        Task AddToCart(int id, Listing listing);
+        Task<Buyer> RemoveFromCart(int id, Listing listing);
+        Task AddOrder(int id, int orderId);
+        Task AddToCart(int id, List<Listing> listings);
     }
 
     public class BuyerService : IBuyerService
@@ -179,9 +181,15 @@ namespace BuyStuffApi.Services
 
 
 
+        public async Task AddToCart(int id, List<Listing> listings)
+        {
+            for (int i = 0; i < listings.Count; i++)
+            {
+                await AddToCart(id, listings[i]);
+            }
+        }
 
-
-        public async Task AddItemToCart(int id, Item item)
+        public async Task AddToCart(int id, Listing listing)
         {
             var buyer = GetBuyer(id).Result;
 
@@ -191,13 +199,42 @@ namespace BuyStuffApi.Services
             }
             try
             {
-                buyer._cart.Add(item);
+                var found = false;
+                for (int i = 0; i < buyer._cart.Count; i++)
+                {
+                    if (buyer._cart[i]._Id == listing._Id)
+                    {
+                        found = true;
+                        buyer._cart[i]._item._quantity++;
+                        buyer._cart[i]._price *= buyer._cart[i]._item._quantity;
+                    }
+                }
+                if (!found)
+                {
+                    listing._item._quantity = 1;
+                    buyer._cart.Add(listing);
+                }
             }
             catch (NullReferenceException ex)
             {
-                buyer._cart = new List<Item>();
-                buyer._cart.Add(item);
+                buyer._cart = new List<Listing>();
+                var found = false;
+                for (int i = 0; i < buyer._cart.Count; i++)
+                {
+                    if (buyer._cart[i]._Id == listing._Id)
+                    {
+                        found = true;
+                        buyer._cart[i]._item._quantity++;
+                        buyer._cart[i]._price *= buyer._cart[i]._item._quantity;
+                    }
+                }
+                if (!found)
+                {
+                    listing._item._quantity = 1;
+                    buyer._cart.Add(listing);
+                }
             }
+
 
 
             using var cmd = Db.Connection.CreateCommand();
@@ -214,9 +251,7 @@ namespace BuyStuffApi.Services
             await cmd.ExecuteNonQueryAsync();
         }
 
-
-
-        public async Task RemoveItemFromCart(int id, Item item)
+        public async Task<Buyer> RemoveFromCart(int id, Listing item)
         {
             var buyer = GetBuyer(id).Result;
 
@@ -225,11 +260,11 @@ namespace BuyStuffApi.Services
                 throw new AppException("User not found");
             }
 
-            List<Item> newCart = new List<Item>();
+            List<Listing> newCart = new List<Listing>();
 
             for (int i = 0; i < buyer._cart.Count; i++)
             {
-                if (buyer._cart[i]._Id == id)
+                if (buyer._cart[i]._Id == item._Id)
                 {
 
                 }
@@ -252,10 +287,8 @@ namespace BuyStuffApi.Services
                 }
             );
             await cmd.ExecuteNonQueryAsync();
+            return buyer;
         }
-
-
-
 
         public async Task PlaceOrder(int id, int orderId)
         {
@@ -290,6 +323,38 @@ namespace BuyStuffApi.Services
             await cmd.ExecuteNonQueryAsync();
         }
 
+        public async Task AddOrder(int id, int orderId)
+        {
+            var buyer = GetBuyer(id).Result;
+
+            if (buyer == null)
+            {
+                throw new AppException("User not found");
+            }
+            try
+            {
+                buyer._orders.Add(orderId);
+            }
+            catch (NullReferenceException ex)
+            {
+                buyer._orders = new List<int>();
+                buyer._orders.Add(orderId);
+            }
+
+
+            using var cmd = Db.Connection.CreateCommand();
+            cmd.CommandText = @"UPDATE `buyers` SET `orders` = @orders WHERE `id` = @id;";
+            BindId(cmd, buyer);
+            cmd.Parameters.Add(
+                new MySqlParameter
+                {
+                    ParameterName = "@orders",
+                    DbType = DbType.String,
+                    Value = System.Text.Json.JsonSerializer.Serialize(buyer._orders)
+                }
+            );
+            await cmd.ExecuteNonQueryAsync();
+        }
 
         public async Task AddBuyerReturn(int id, int orderId)
         {
@@ -340,7 +405,7 @@ namespace BuyStuffApi.Services
             {
                 while (await reader.ReadAsync())
                 {
-                    List<Item> cart = null;
+                    List<Listing> cart = null;
                     List<int> orders = null;
                     List<int> returns = null;
                     Payment payment = null;
@@ -348,7 +413,7 @@ namespace BuyStuffApi.Services
                     // long retval_salt = reader.GetBytes(11, 0, pass_hash, 0, 500);
                     try
                     {
-                        cart = JsonConvert.DeserializeObject<List<Item>>((string)reader["cart"]);
+                        cart = JsonConvert.DeserializeObject<List<Listing>>((string)reader["cart"]);
                     }
                     catch (InvalidCastException ex)
                     {
@@ -397,8 +462,6 @@ namespace BuyStuffApi.Services
                         _returns = returns,
                         _payment = payment,
                         _address = (string)reader["address"]
-                        // _password_hash = (byte[])(Convert.FromBase64String(reader.GetByte(2).ToString())),
-                        // _password_salt = (byte[])(Convert.FromBase64String(reader.GetByte(11).ToString()))
                     };
                     buyers.Add(buyer);
                 }
@@ -453,13 +516,12 @@ namespace BuyStuffApi.Services
                     if (computedHash[i] != password_hash[i]) return false;
                 }
             }
-
             return true;
         }
 
         public async Task Update(Buyer newBuyer, string password)
         {
-            var buyer = GetBuyer(newBuyer._Id).Result;
+            var buyer = GetBuyersSecret(newBuyer._Id).Result;
 
             if (newBuyer == null)
             {
@@ -595,10 +657,95 @@ namespace BuyStuffApi.Services
             return buyers;
         }
 
+        private async Task<Buyer> GetBuyersSecret(int id)
+        {
 
+            using var cmd = Db?.Connection.CreateCommand();
+            cmd.CommandText = @"SELECT * FROM `buyers` WHERE `id` = @id";
+            cmd.Parameters.Add(
+                new MySqlParameter
+                {
+                    ParameterName = "@id",
+                    DbType = DbType.Int32,
+                    Value = id,
+                }
+            );
+            var buyers = new List<Buyer>();
+            using (var reader = await cmd.ExecuteReaderAsync())
+            {
+                while (await reader.ReadAsync())
+                {
+                    List<Listing> cart = null;
+                    List<int> orders = null;
+                    List<int> returns = null;
+                    Payment payment = null;
+                    byte[] pass_hash = (byte[])reader["password_hash"];
+                    byte[] pass_salt = (byte[])reader["password_salt"];
+                    // long retval_hash = reader.GetBytes(2, 0, pass_hash, 0, 500);
+                    // long retval_salt = reader.GetBytes(11, 0, pass_hash, 0, 500);
+                    try
+                    {
+                        cart = JsonConvert.DeserializeObject<List<Listing>>((string)reader["cart"]);
+                    }
+                    catch (InvalidCastException ex)
+                    {
+
+                    }
+
+                    try
+                    {
+                        returns = JsonConvert.DeserializeObject<List<int>>((string)reader["returns"]);
+                    }
+                    catch (InvalidCastException ex)
+                    {
+
+                    }
+
+                    try
+                    {
+                        orders = JsonConvert.DeserializeObject<List<int>>((string)reader["orders"]);
+                    }
+                    catch (InvalidCastException ex)
+                    {
+
+                    }
+
+
+                    try
+                    {
+                        payment = JsonConvert.DeserializeObject<Payment>((string)reader["payment"]);
+                    }
+                    catch (InvalidCastException ex)
+                    {
+
+                    }
+
+
+
+                    var buyer = new Buyer
+                    {
+                        _Id = reader.GetInt32(0),
+                        _email = reader.GetString(1),
+                        _username = (string)reader["username"],
+                        _first_name = (string)reader["first_name"],
+                        _last_name = (string)reader["last_name"],
+                        _orders = orders,
+                        _cart = cart,
+                        _returns = returns,
+                        _payment = payment,
+                        _address = (string)reader["address"],
+                        _password_hash = pass_hash,
+                        _password_salt = pass_salt
+                    };
+                    buyers.Add(buyer);
+                }
+            }
+            return buyers[0];
+        }
 
         // for future might want to add the ability to acall all/multiple users
     }
+
 
     public static class Help
     {
